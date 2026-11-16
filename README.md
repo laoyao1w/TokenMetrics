@@ -122,5 +122,8 @@ src-tauri/src/     Rust：IPC 命令、SQLite 快照与解密
 </p>
 
 <p align="center">
-  <sub>下载绿色免安装版：<a href="https://github.com/laoyao1w/TokenMetrics/raw/main/frontend/downloads/TokenMetrics.exe">TokenMetrics.exe</a>（约 3.9 MB），点击后可直接下载桌面端 exe 文件，解压即用。</sub>
+  <a href="https://github.com/laoyao1w/TokenMetrics/raw/main/frontend/downloads/TokenMetrics.exe" style="display:inline-block;font-size:17px;font-weight:700;color:#fff;background:linear-gradient(135deg,#0ea5e9,#6366f1);padding:12px 30px;border-radius:10px;text-decoration:none">⬇️ 下载绿色免安装版 · TokenMetrics.exe（约 3.9 MB）</a>
+</p>
+<p align="center">
+  <sub style="font-size:13px">点击后可直接下载桌面端 exe 文件，<b>双击即用</b></sub>
 </p>
