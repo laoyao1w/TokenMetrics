@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="format-detection" content="telephone=no">
+<title>TOKEN 排行榜 · 今日蹬值榜</title>
+<style>
+  :root {
+    --bg: #070c18;
+    --text: #e9f2ff;
+    --muted: #93a6c3;
+    --accent: #35d3ff;
+    --cyan: #35d3ff;
+    --purple: #7c5cff;
+    --gold: #ffc861;
+    --green: #3fe0a6;
+    --border: rgba(255, 255, 255, 0.09);
+    --mono: "Orbitron", "JetBrains Mono", monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { min-height: 100%; }
+  body {
+    font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+    color: var(--text);
+    background:
+      radial-gradient(120% 80% at 10% 0%, rgba(53, 211, 255, 0.16) 0%, transparent 55%),
+      radial-gradient(130% 90% at 100% 100%, rgba(124, 92, 255, 0.13) 0%, transparent 50%),
+      var(--bg);
+    min-height: 100vh;
+    padding: 32px 16px 48px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 560px; margin: 0 auto; }
+
+  .head { text-align: center; margin-bottom: 22px; animation: rise .5s ease both; }
+  .head .title {
+    font-family: var(--mono);
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 6px;
+    color: var(--cyan);
+    text-shadow: 0 0 22px rgba(53, 211, 255, 0.45);
+  }
+  .head .sub { margin-top: 10px; font-size: 13px; letter-spacing: 2px; color: var(--muted); }
+  .head .chip {
+    display: inline-block; margin-top: 12px;
+    font-size: 11px; letter-spacing: 2px; color: var(--gold);
+    border: 1px dashed rgba(255, 200, 97, 0.45);
+    border-radius: 999px; padding: 4px 14px;
+    background: rgba(255, 200, 97, 0.06);
+  }
+
+  /* 我的排名横幅：仅当链接携带自己的战绩时显示 */
+  .me-band {
+    margin-bottom: 16px;
+    text-align: center;
+    padding: 14px 16px;
+    border-radius: 14px;
+    border: 1px solid rgba(53, 211, 255, 0.45);
+    background: linear-gradient(180deg, rgba(53, 211, 255, 0.14), rgba(53, 211, 255, 0.03));
+    animation: rise .5s ease both;
+  }
+  .me-band .k { font-size: 11px; letter-spacing: 3px; color: var(--muted); }
+  .me-band .v {
+    margin-top: 4px;
+    font-family: var(--mono); font-weight: 700; font-size: 30px; letter-spacing: 2px;
+    color: var(--cyan); text-shadow: 0 0 20px rgba(53, 211, 255, 0.5);
+  }
+  .me-band .v small { font-size: 14px; color: var(--muted); letter-spacing: 1px; margin-left: 2px; }
+  .me-band .tip { margin-top: 6px; font-size: 11px; color: var(--muted); letter-spacing: 1px; }
+
+  .panel {
+    background: rgba(13, 20, 38, 0.82);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 8px 14px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+  }
+
+  .row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    animation: rise .45s ease both;
+  }
+  .row:last-child { border-bottom: none; }
+
+  /* 自己所在行高亮 */
+  .row.me {
+    border-radius: 10px;
+    border-left: 3px solid var(--cyan);
+    border-bottom-color: transparent;
+    background: linear-gradient(90deg, rgba(53, 211, 255, 0.12), rgba(53, 211, 255, 0.02));
+    margin: 6px 0;
+    padding-left: 9px;
+  }
+
+  .rk {
+    flex: none;
+    width: 30px; height: 30px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-weight: 700; font-size: 14px;
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--muted);
+  }
+  .rk.top1 { background: linear-gradient(180deg, #ffd98a, #d69a2e); color: #1a1204; border-color: #ffd98a; box-shadow: 0 0 14px rgba(255, 200, 97, 0.55); }
+  .rk.top2 { background: linear-gradient(180deg, #e8edf4, #9fb2c8); color: #101720; border-color: #e8edf4; }
+  .rk.top3 { background: linear-gradient(180deg, #e2a878, #a8603a); color: #1a0e06; border-color: #e2a878; }
+
+  .info { flex: 1; min-width: 0; }
+  .info .name {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 15px; font-weight: 600; letter-spacing: 0.5px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .info .badge {
+    flex: none;
+    font-size: 10px; font-weight: 600; letter-spacing: 1px;
+    color: #06121f;
+    background: var(--cyan);
+    border-radius: 6px; padding: 1px 6px;
+  }
+  .info .tier { margin-top: 3px; font-size: 11px; color: var(--muted); letter-spacing: 0.5px; }
+  .info .tier b { color: var(--cyan); font-weight: 600; }
+  .info .meta { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .info .meta .src-chip {
+    font-size: 10px; color: var(--muted);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 999px; padding: 1px 8px;
+  }
+  .info .meta .date { font-size: 10px; color: var(--muted); opacity: .7; letter-spacing: 1px; }
+
+  .val { flex: none; text-align: right; }
+  .val .num {
+    font-family: var(--mono);
+    font-size: 16px; font-weight: 700; color: var(--gold);
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 12px rgba(255, 200, 97, 0.35);
+  }
+  .val .label { font-size: 9px; color: var(--muted); letter-spacing: 1px; margin-top: 2px; }
+  .row.me .val .num { color: var(--cyan); text-shadow: 0 0 12px rgba(53, 211, 255, 0.4); }
+
+  .bar-wrap { flex: none; width: 86px; }
+  .bar { height: 5px; border-radius: 99px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+  .bar i {
+    display: block; height: 100%; border-radius: 99px;
+    background: linear-gradient(90deg, var(--cyan), var(--purple));
+    box-shadow: 0 0 10px rgba(53, 211, 255, 0.6);
+    width: 0; transition: width .9s cubic-bezier(.22, 1, .36, 1);
+  }
+  .bar.top1 i { background: linear-gradient(90deg, #ffd98a, #ff9d3f); box-shadow: 0 0 10px rgba(255, 200, 97, 0.7); }
+  .bar.top2 i { background: linear-gradient(90deg, #cfe0f2, #8fa8c4); }
+  .bar.top3 i { background: linear-gradient(90deg, #e2a878, #c06a3a); }
+
+  .empty { padding: 40px 20px; text-align: center; }
+  .empty .big { font-size: 34px; margin-bottom: 12px; letter-spacing: 8px; color: var(--muted); font-family: var(--mono); }
+  .empty p { font-size: 13px; color: var(--muted); line-height: 1.9; }
+
+  .foot {
+    margin-top: 18px;
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    color: var(--muted); font-size: 12px; letter-spacing: 1px;
+    animation: rise .5s ease both;
+  }
+  .foot a { color: var(--cyan); text-decoration: none; }
+  .foot a:hover { text-decoration: underline; }
+
+  .open-src {
+    margin-top: 20px; text-align: center; font-size: 11px; letter-spacing: 1px;
+    color: var(--muted); line-height: 1.8;
+    animation: rise .5s ease both;
+  }
+  .open-src a { color: var(--cyan); text-decoration: none; border-bottom: 1px dashed rgba(53,211,255,0.4); }
+  .open-src a:hover { text-decoration: underline; }
+
+  @keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="head">
+      <div class="title">TOKEN用量排行榜</div>
+      <div class="sub">今日 Token 用量 · 前 100 名</div>
+      <span class="chip">普通人是否进入AI时代，就看token用量</span>
+    </div>
+
+    <div class="me-band" id="meBand" style="display:none">
+      <div class="k">你的排名</div>
+      <div class="v" id="meRank">--<small>名</small></div>
+      <div class="tip" id="meTip"></div>
+    </div>
+
+    <div class="panel" id="board">
+      <div class="empty" id="emptyState" style="display:none">
+        <div class="big">NO DATA</div>
+        <p>榜单暂无上榜记录<br>安装桌面端采集 Token 用量，分享战绩后即可上榜</p>
+      </div>
+    </div>
+
+    <div class="foot">
+      <span>今日蹬值榜 · 前 100 名</span>
+      <a href="downloads/TokenMetrics.exe" download>下载桌面端</a>
+    </div>
+
+    <div class="open-src">
+      开源项目 Token 计量办 · 榜单基于真实战绩指纹校验、严禁伪造<br>
+      源码公开可查证：<a href="https://github.com/laoyao1w/TokenMetrics" target="_blank" rel="noopener">github.com/laoyao1w/TokenMetrics</a>
+    </div>
+  </div>
+
+<script src="ranks.js"></script>
+<script>
+(function () {
+  const R = window.TokenRanks;
+  const board = document.getElementById("board");
+
+  // ---- 解析链接携带的自身战绩（与战绩验证页同格式）----
+  const q = {};
+  (location.search || "").replace(/^\?/, "").split("&").forEach(function (kv) {
+    const i = kv.indexOf("=");
+    if (i < 0) return;
+    try { q[decodeURIComponent(kv.slice(0, i))] = decodeURIComponent(kv.slice(i + 1)); }
+    catch (e) { q[kv.slice(0, i)] = kv.slice(i + 1); }
+  });
+
+  function fingerprint(total, today, active) {
+    const fp = String(total) + "|" + String(today) + "|" + String(active);
+    let h = 2166136261;
+    for (let i = 0; i < fp.length; i++) {
+      h ^= fp.charCodeAt(i);
+      h = (h * 16777619) >>> 0;
+    }
+    return h.toString(16).toUpperCase().padStart(6, "0").slice(-6);
+  }
+
+  // 自身战绩：q.n 为报告号，q.t/d/a 为累计/今日/天数；校验指纹防止篡改
+  const own = { valid: false };
+  if (q.n && q.t !== undefined && q.d !== undefined && q.a !== undefined) {
+    const t = Number(q.t), d = Number(q.d), a = Number(q.a);
+    if (/^TJ-\d{8}-[0-9A-F]{6}$/.test(q.n) && Number.isFinite(t) && Number.isFinite(d) && Number.isFinite(a) && d > 0) {
+      if (fingerprint(t, d, a) === q.n.slice(-6)) {
+        own.valid = true;
+        own.reportNo = q.n;
+        own.name = q.name ? String(q.name).slice(0, 12) : "我";
+        own.total = t;
+        own.today = d;
+        own.activeDays = a;
+        own.sources = (q.s || "").split(",").filter(Boolean);
+        own.date = q.n.slice(3, 11).replace(/^(\d{4})(\d{2})(\d{2})$/, "$1-$2-$3");
+      }
+    }
+  }
+
+  fetch("leaderboard.json")
+    .then(function (res) {
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.json();
+    })
+    .then(function (data) {
+      const list = (Array.isArray(data) ? data : [])
+        .filter(function (r) { return r && Number(r.today) > 0; })
+        .sort(function (a, b) { return b.today - a.today; });
+      render(list);
+    })
+    .catch(function () { render([]); });
+
+  function rowHTML(p, idx, opts) {
+    const rank = R.computeRank(p.total);
+    const tier = "LV." + rank.level + " " + rank.name;
+    const title = R.defaultTitle(rank);
+    const top = idx < 3 ? " top" + (idx + 1) : "";
+    const fmt = R.formatToken(p.today);
+    const barClass = opts ? ("bar" + (idx < 3 ? " top" + (idx + 1) : "")) : ("bar" + (idx < 3 ? " top" + (idx + 1) : ""));
+    const chips = (p.sources || []).map(function (s) {
+      return '<span class="src-chip">' + String(s).replace(/</g, "&lt;") + "</span>";
+    }).join("");
+    return (
+      '<div class="row' + (opts && opts.me ? " me" : "") + '" style="animation-delay:' + (idx * 40) + 'ms">' +
+        '<div class="rk' + top + '">' + (idx + 1) + "</div>" +
+        '<div class="info">' +
+          '<div class="name">' + String(p.name || "匿名蹬车手").replace(/</g, "&lt;") +
+            (opts && opts.me ? '<span class="badge">我</span>' : "") + "</div>" +
+          '<div class="tier"><b>' + tier + "</b> · " + title + "</div>" +
+          '<div class="meta">' + chips + '<span class="date">' + (p.date || "") + "</span></div>" +
+        "</div>" +
+        '<div class="bar-wrap"><div class="' + barClass + '"><i data-width="' + Math.max(3, Math.round((p.today / (opts && opts.maxToday)) * 100)) + '"></i></div></div>' +
+        '<div class="val"><div class="num">' + fmt + '</div><div class="label">今日</div></div>' +
+      "</div>"
+    );
+  }
+
+  function rankIndexOf(list, today) {
+    // 返回今日量恰好 <= today 的插入位（从 0 开始的全局名次）
+    let i = 0;
+    while (i < list.length && list[i].today > today) i++;
+    return i;
+  }
+
+  function render(list) {
+    const ownStoredIndex = own.valid ? list.findIndex(function (r) { return r.reportNo === own.reportNo; }) : -1;
+    const ownPos = own.valid ? rankIndexOf(list, own.today) + 1 : -1;
+
+    // 基础榜单：前 100 名
+    const main = list.slice(0, 100);
+    // 自己未入库但名次在前 100 内：插入自己的行（榜单仍然最多 100 行）
+    if (own.valid && ownStoredIndex < 0 && ownPos <= 100) {
+      main.splice(ownPos - 1, 0, own);
+    }
+    const maxToday = Math.max((main[0] || { today: 0 }).today, own.valid ? own.today : 0);
+
+    // 组装视图行
+    const view = main.map(function (p) {
+      return { p: p, me: own.valid && p.reportNo === own.reportNo };
+    });
+    // 名次在 100 名开外：自己的行单独排在末尾展示
+    if (own.valid && ownPos > 100) {
+      view.push({ p: own, me: true });
+    }
+
+    if (!view.length) {
+      document.getElementById("emptyState").style.display = "block";
+      return;
+    }
+
+    let html = "";
+    for (let i = 0; i < view.length; i++) {
+      html += rowHTML(view[i].p, i, { me: view[i].me, maxToday: maxToday });
+    }
+    board.innerHTML = html;
+
+    requestAnimationFrame(function () {
+      board.querySelectorAll(".bar i").forEach(function (iEl) {
+        iEl.style.width = iEl.dataset.width + "%";
+      });
+    });
+
+    // 我的排名横幅
+    const band = document.getElementById("meBand");
+    if (own.valid) {
+      band.style.display = "block";
+      document.getElementById("meRank").innerHTML =
+        "第 " + ownPos + "<small>名</small>";
+      document.getElementById("meTip").textContent =
+        ownPos <= 100 ? "已在榜单中高亮显示" : "今日用量暂未进入前 100 名";
+    }
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+{
+  "name": "ai-token-hall",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local-first AI usage collectors and analytics for the AI achievement platform.",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "collect": "tsx src/cli.ts",
+    "preview": "tsx src/preview-server.ts",
+    "test": "vitest run",
+    "build:collector": "node scripts/build-collector.mjs",
+    "add-record": "node scripts/add-record.mjs",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "deploy": "npx wrangler pages deploy frontend --project-name tokenmetrology"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.4",
+    "@types/node": "^24.6.0",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "@journeyapps/wa-sqlite": "^1.1.0",
+    "qrcode-generator": "^1.4.4",
+    "sql.js": "^1.15.2"
+  }
+}

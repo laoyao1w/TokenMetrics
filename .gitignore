@@ -1,0 +1,14 @@
+node_modules/
+dist/
+coverage/
+src-tauri/target/
+desktop-runtime/
+.wrangler/
+.wrangler-home/
+.wrangler-xdg/
+.wrangler-cfg/
+.screenshots/
+*.log
+.obsidian/
+.trae-html-share-packages/
+frontend/downloads/

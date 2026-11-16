@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="format-detection" content="telephone=no">
+<title>TOKEN 计量办 · 计量验证</title>
+<script>
+  document.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+</script>
+<style>
+  :root {
+    --bg: #070c18;
+    --panel: rgba(13, 20, 38, 0.85);
+    --line: rgba(120, 200, 255, 0.28);
+    --gold: #ffc46b;
+    --cyan: #5ee6ff;
+    --purple: #b48bff;
+    --text: #e9f2ff;
+    --muted: #8aa0c4;
+    --danger: #ff6b6b;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background:
+      radial-gradient(1200px 600px at 85% -10%, rgba(180,139,255,0.16), transparent 60%),
+      radial-gradient(900px 500px at -10% 100%, rgba(94,230,255,0.12), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    min-height: 100vh;
+    padding: 24px 16px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .card {
+    position: relative;
+    width: 100%;
+    max-width: 460px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 0;
+    padding: 28px 26px 22px;
+    overflow: hidden;
+    backdrop-filter: blur(14px);
+    box-shadow: 0 24px 60px rgba(0,0,0,0.55);
+    animation: rise .5s ease both;
+  }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  .head { display: flex; align-items: center; margin-bottom: 20px; }
+  /* 欧洲贵族家族徽章：参考图样式的金边黑底盾牌 */
+  .seal {
+    position: relative;
+    /* 微信兼容：固定物理尺寸 + 最小尺寸 + 禁用收缩 */
+    width: 80px; height: 90px;
+    min-width: 80px; min-height: 90px;
+    flex: 0 0 80px;
+    margin-right: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4));
+  }
+  .sealSvg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; }
+  .sealText {
+    position: relative;
+    z-index: 2;
+    text-align: center;
+    line-height: 1.2;
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.5px;
+    /* 金色文字，与徽章整体风格统一 */
+    color: #f3cf8e;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+    margin-top: 5px;
+  }
+  .head-title { font-size: 18px; font-weight: 700; letter-spacing: 2px; }
+  .head-sub { font-size: 12px; color: var(--muted); margin-top: 3px; letter-spacing: 1px; }
+  .report-no {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: rgba(94,230,255,0.06);
+    border: 1px dashed rgba(94,230,255,0.32);
+    border-radius: 0;
+    padding: 10px 14px;
+    font-family: "JetBrains Mono", Consolas, monospace;
+    font-size: 13px;
+    letter-spacing: 1px;
+    color: var(--cyan);
+    margin-bottom: 18px;
+  }
+  .report-no .tag { color: var(--muted); font-family: "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 12px; letter-spacing: 2px; flex: none; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .stat {
+    background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01));
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 0;
+    padding: 14px 16px;
+  }
+  .stat .k { font-size: 12px; color: var(--muted); letter-spacing: 2px; margin-bottom: 8px; }
+  .stat .v {
+    font-family: "Orbitron", "Bahnschrift", Consolas, monospace;
+    font-weight: 700;
+    font-size: 30px;
+    letter-spacing: 1px;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 18px rgba(255,196,107,0.35);
+    color: var(--gold);
+  }
+  .stat .v .unit { font-size: 14px; color: var(--muted); font-family: "PingFang SC", "Microsoft YaHei", sans-serif; font-weight: 600; margin-left: 4px; letter-spacing: 1px; }
+  .stat .v.cyan { color: var(--cyan); text-shadow: 0 0 18px rgba(94,230,255,0.35); }
+  .stat .v.purple { color: var(--purple); text-shadow: 0 0 18px rgba(180,139,255,0.4); }
+  /* 今日用量的突出展示：整行通栏 + 更大数字 + 强调背景 */
+  .stat.hero {
+    grid-column: 1 / -1;
+    background: linear-gradient(180deg, rgba(94,230,255,0.12), rgba(94,230,255,0.02));
+    border-color: rgba(94,230,255,0.38);
+    padding: 18px 16px;
+  }
+  .stat.hero .k { font-size: 13px; letter-spacing: 3px; }
+  .stat.hero .v { font-size: 46px; letter-spacing: 2px; }
+  .verify {
+    margin-top: 16px;
+    display: flex; align-items: center; gap: 10px;
+    border-radius: 0;
+    padding: 11px 14px;
+    font-size: 13px;
+    border: 1px solid;
+  }
+  .verify.ok { background: rgba(94,230,255,0.07); border-color: rgba(94,230,255,0.3); color: var(--cyan); }
+  .verify.fail { background: rgba(255,107,107,0.07); border-color: rgba(255,107,107,0.35); color: var(--danger); }
+  .verify .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .verify.ok .dot { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+  .verify.fail .dot { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
+  .foot { margin-top: 16px; display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 11px; letter-spacing: 1px; }
+  .src { font-size: 12px; color: var(--muted); margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .src b { color: var(--text); font-weight: 600; }
+  .chip { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); padding: 3px 10px; border-radius: 0; font-size: 12px; }
+  .err { text-align: center; padding: 40px 10px; }
+  .err .big { font-size: 40px; margin-bottom: 12px; }
+  /* 底部显眼入口 */
+  .links-bar { width: 100%; max-width: 460px; display: flex; gap: 10px; }
+  .links-bar .foot-btn {
+    flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 13px 0; font-size: 15px; font-weight: 800; letter-spacing: 2px;
+    text-decoration: none; white-space: nowrap; border-radius: 0;
+    color: var(--cyan); background: rgba(94,230,255,0.1); border: 1px solid rgba(94,230,255,0.5);
+    transition: filter .2s ease, box-shadow .2s ease;
+  }
+  .links-bar .foot-btn.btn-dl {
+    color: #06121f; background: var(--cyan); border-color: var(--cyan);
+    box-shadow: 0 0 18px rgba(94,230,255,0.45);
+  }
+  .links-bar .foot-btn:hover { filter: brightness(1.1); }
+  .links-bar .foot-btn svg { width: 14px; height: 14px; }
+  .open-src {
+    margin-top: 16px; text-align: center; font-size: 11px; letter-spacing: 1px;
+    color: var(--muted); line-height: 1.8;
+  }
+  .open-src a { color: var(--cyan); text-decoration: none; border-bottom: 1px dashed rgba(94,230,255,0.4); }
+  .open-src a:hover { text-decoration: underline; }
+
+  /* 移动端：上边距 10px，最大化显示面积 */
+  @media (max-width: 480px) {
+    body { padding: 10px 12px 14px; gap: 10px; }
+    .card { padding: 16px 14px 14px; }
+    .head { margin-bottom: 14px; }
+    .seal { width: 64px; height: 72px; min-width: 64px; min-height: 72px; flex: 0 0 64px; margin-right: 12px; }
+    .head-title { font-size: 16px; }
+    .report-no { margin-bottom: 14px; padding: 8px 12px; font-size: 12px; }
+    .stats { gap: 8px; }
+    .stat { padding: 12px; }
+    .stat .v { font-size: 26px; }
+    .stat.hero .v { font-size: 40px; }
+    .verify { margin-top: 12px; padding: 10px 12px; }
+    .foot { margin-top: 12px; }
+    .links-bar { gap: 8px; }
+    .links-bar .foot-btn { padding: 12px 0; font-size: 14px; }
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="head">
+      <div class="seal">
+      <svg class="sealSvg" viewBox="0 0 100 115" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <!-- 金属金渐变 -->
+          <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#fceabb;stop-opacity:1" />
+            <stop offset="50%" style="stop-color:#f8b500;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#bf953f;stop-opacity:1" />
+          </linearGradient>
+          <!-- 边框高光渐变 -->
+          <linearGradient id="borderGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" style="stop-color:#fff9e6;stop-opacity:1" />
+            <stop offset="15%" style="stop-color:#f3cf8e;stop-opacity:1" />
+            <stop offset="85%" style="stop-color:#d4af37;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#8a6d3b;stop-opacity:1" />
+          </linearGradient>
+          <!-- 内部黑色背景渐变 -->
+          <linearGradient id="innerBg" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" style="stop-color:#333;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#000;stop-opacity:1" />
+          </linearGradient>
+          <!-- 玻璃反光效果 -->
+          <linearGradient id="shine" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#fff;stop-opacity:0.3" />
+            <stop offset="40%" style="stop-color:#fff;stop-opacity:0.1" />
+            <stop offset="60%" style="stop-color:#fff;stop-opacity:0" />
+          </linearGradient>
+          <!-- 麦穗形状定义 -->
+          <g id="wheat-ear">
+            <ellipse cx="0" cy="0" rx="1.5" ry="3" fill="url(#goldGrad)" transform="rotate(-30)"/>
+          </g>
+        </defs>
+
+        <!-- 盾牌外形 -->
+        <path d="M50,5 L90,15 C92,50 90,85 50,110 C10,85 8,50 12,15 Z" fill="url(#borderGrad)" />
+        <!-- 盾牌内芯 -->
+        <path d="M50,12 L82,20 C84,50 82,78 50,98 C18,78 16,50 18,20 Z" fill="url(#innerBg)" />
+        
+        <!-- 内部麦穗花边 -->
+        <g transform="translate(25, 75) rotate(-15)">
+          <path d="M0,0 Q-5,-25 5,-50" fill="none" stroke="#d4af37" stroke-width="0.8" opacity="0.6"/>
+          <use href="#wheat-ear" x="-2" y="-5"/>
+          <use href="#wheat-ear" x="-3" y="-12"/>
+          <use href="#wheat-ear" x="-4" y="-19"/>
+          <use href="#wheat-ear" x="-5" y="-26"/>
+          <use href="#wheat-ear" x="-4" y="-33"/>
+          <use href="#wheat-ear" x="-2" y="-40"/>
+          <use href="#wheat-ear" x="1" y="-47"/>
+        </g>
+        <g transform="translate(75, 75) rotate(15) scale(-1, 1)">
+          <path d="M0,0 Q-5,-25 5,-50" fill="none" stroke="#d4af37" stroke-width="0.8" opacity="0.6"/>
+          <use href="#wheat-ear" x="-2" y="-5"/>
+          <use href="#wheat-ear" x="-3" y="-12"/>
+          <use href="#wheat-ear" x="-4" y="-19"/>
+          <use href="#wheat-ear" x="-5" y="-26"/>
+          <use href="#wheat-ear" x="-4" y="-33"/>
+          <use href="#wheat-ear" x="-2" y="-40"/>
+          <use href="#wheat-ear" x="1" y="-47"/>
+        </g>
+
+        <!-- 玻璃反光层 -->
+        <path d="M50,12 L82,20 C84,50 82,78 50,98 C18,78 16,50 18,20 Z" fill="url(#shine)" />
+
+        <!-- 顶部五角星 -->
+        <g fill="#f3cf8e">
+          <path d="M50,22 l2,4 l4.5,0.5 l-3.5,3 l1,4.5 l-4,-2.5 l-4,2.5 l1,-4.5 l-3.5,-3 l4.5,-0.5 Z" transform="scale(1.2) translate(-8, -4)"/>
+          <path d="M38,28 l1.5,3 l3.5,0.5 l-2.5,2.5 l0.8,3.5 l-3.3,-2 l-3.3,2 l0.8,-3.5 l-2.5,-2.5 l3.5,-0.5 Z" />
+          <path d="M62,28 l1.5,3 l3.5,0.5 l-2.5,2.5 l0.8,3.5 l-3.3,-2 l-3.3,2 l0.8,-3.5 l-2.5,-2.5 l3.5,-0.5 Z" />
+          <path d="M28,36 l1,2 l2.5,0.3 l-1.8,1.8 l0.5,2.5 l-2.2,-1.4 l-2.2,1.4 l0.5,-2.5 l-1.8,-1.8 l2.5,-0.3 Z" />
+          <path d="M72,36 l1,2 l2.5,0.3 l-1.8,1.8 l0.5,2.5 l-2.2,-1.4 l-2.2,1.4 l0.5,-2.5 l-1.8,-1.8 l2.5,-0.3 Z" />
+        </g>
+      </svg>
+      <div class="sealText">TOKEN<br>计量办</div>
+    </div>
+      <div>
+        <div class="head-title">官方 Token 计量验证</div>
+        <div class="head-sub">数据本地采集 · 数据真实可查</div>
+      </div>
+    </div>
+    <div class="report-no"><span class="tag">报告编号</span><span id="rno">—</span></div>
+    <div class="stats">
+      <div class="stat hero"><div class="k">今日Token消耗</div><div class="v cyan" id="vToday"><span>—</span></div></div>
+      <div class="stat"><div class="k">累计Token消耗</div><div class="v" id="vTotal"><span>—</span></div></div>
+      <div class="stat"><div class="k">消耗天数</div><div class="v purple" id="vActive"><span>—</span></div></div>
+    </div>
+    <div class="src" id="srcBox"><b>数据来源</b><span id="srcList">—</span></div>
+    <div class="verify ok" id="verifyBox"><span class="dot"></span><span id="verifyText">指纹校验中…</span></div>
+    <div class="foot"><span>TOKEN 计量办 · 签发</span><span id="genDate">—</span></div>
+  </div>
+
+  <div class="links-bar">
+    <a class="foot-btn btn-dl" href="downloads/TokenMetrics.exe" download>
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M2.5 13.5h11"/>
+      </svg>
+      下载桌面端
+    </a>
+    <a class="foot-btn" href="leaderboard.html">排行榜</a>
+  </div>
+
+  <div class="open-src">
+    开源项目 Token 计量办 · 数据本地采集、绝不伪造<br>
+    源码公开可查证：<a href="https://github.com/laoyao1w/TokenMetrics" target="_blank" rel="noopener">github.com/laoyao1w/TokenMetrics</a>
+  </div>
+
+<script>
+(function () {
+  var q = {};
+  (location.search || "").replace(/^\?/, "").split("&").forEach(function (kv) {
+    var i = kv.indexOf("=");
+    if (i < 0) return;
+    try { q[decodeURIComponent(kv.slice(0, i))] = decodeURIComponent(kv.slice(i + 1)); }
+    catch (e) { q[kv.slice(0, i)] = kv.slice(i + 1); }
+  });
+
+  var rno = q.n || "";
+  var total = Number(q.t || 0);
+  var today = Number(q.d || 0);
+  var active = Number(q.a || 0);
+  var srcs = (q.s || "").split(",").filter(Boolean);
+
+  function fmt(n) {
+    n = Number(n || 0);
+    if (n >= 1e8) return { v: String(Math.round(n / 1e8)), u: "亿" };
+    if (n >= 1e4) return { v: String(Math.round(n / 1e4)), u: "万" };
+    return { v: String(Math.round(n)), u: "" };
+  }
+  function renderStat(el, n, noUnit) {
+    var o = fmt(n);
+    el.innerHTML = '<span>' + o.v + '</span>' + (o.u ? '<span class="unit">' + o.u + '</span>' : '');
+  }
+
+  var box = document.getElementById("verifyBox");
+  var text = document.getElementById("verifyText");
+
+  if (!/^TJ-\d{8}-[0-9A-F]{6}$/.test(rno) || !(q.t !== undefined && q.d !== undefined && q.a !== undefined) ||
+      (isNaN(total) || isNaN(today) || isNaN(active))) {
+    document.querySelector(".stats").style.display = "none";
+    document.getElementById("srcBox").style.display = "none";
+    document.getElementById("rno").textContent = "参数无效";
+    box.className = "verify fail";
+    text.textContent = "二维码数据缺失或损坏，请重新生成海报";
+    return;
+  }
+
+  var hashPart = rno.slice(-6);
+  var fp = String(total) + "|" + String(today) + "|" + String(active);
+  var h = 2166136261;
+  for (var i = 0; i < fp.length; i++) {
+    h ^= fp.charCodeAt(i);
+    h = (h * 16777619) >>> 0;
+  }
+  var ok = h.toString(16).toUpperCase().padStart(6, "0").slice(-6) === hashPart;
+
+  document.getElementById("rno").textContent = rno;
+  // 签发时间：优先取二维码携带的精确时间（YYYYMMDDHHmm），旧报告兜底为编号中的日期
+  var genDate = document.getElementById("genDate");
+  var tt = String(q.tt || "");
+  var hhmm = /^\d{12}$/.test(tt) ? tt.slice(8, 10) + ":" + tt.slice(10, 12) : "";
+  genDate.textContent = rno.slice(3, 11).replace(
+    /^(\d{4})(\d{2})(\d{2})$/, "$1/$2/$3") + (hhmm ? " " + hhmm : "");
+  renderStat(document.getElementById("vTotal"), total);
+  renderStat(document.getElementById("vToday"), today);
+  document.getElementById("vActive").innerHTML =
+    '<span>' + Math.round(active) + '</span><span class="unit">天</span>';
+  if (srcs.length) {
+    document.getElementById("srcList").innerHTML = srcs.map(function (s) {
+      return '<span class="chip">' + s.replace(/</g, "&lt;") + '</span>';
+    }).join(" ");
+  } else {
+    document.getElementById("srcList").textContent = "本地采集";
+  }
+
+  if (ok) {
+    box.className = "verify ok";
+    text.textContent = "数据指纹复核通过 · 战绩未被篡改";
+  } else {
+    box.className = "verify fail";
+    text.textContent = "数据指纹与编号不符 · 请核对报告真实性";
+  }
+})();
+</script>
+</body>
+</html>

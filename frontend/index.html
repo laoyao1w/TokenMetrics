@@ -1,0 +1,2171 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Token 统计</title>
+<script>
+  document.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Orbitron:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: rgba(8, 14, 26, 0.94);
+    --panel: rgba(18, 28, 46, 0.72);
+    --panel-hover: rgba(26, 38, 60, 0.88);
+    --text: #eef4ff;
+    --muted: #93a6c3;
+    --accent: #35d3ff;
+    --cyan: #35d3ff;
+    --gold: #ffc861;
+    --green: #3fe0a6;
+    --danger: #ff7b8f;
+    --border: rgba(255, 255, 255, 0.09);
+    --mono: "Orbitron", "JetBrains Mono", monospace;
+    --hero-font: "Orbitron", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    background: transparent !important;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+  body {
+    font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+    color: var(--text);
+    user-select: none;
+  }
+  /* 窗口默认半透明，鼠标移入后不透明 */
+  .shell {
+    height: 100vh;
+    width: 100vw;
+    border-radius: 14px;
+    background:
+      radial-gradient(120% 80% at 10% 0%, rgba(53, 211, 255, 0.16) 0%, transparent 55%),
+      radial-gradient(130% 90% at 100% 100%, rgba(124, 92, 255, 0.12) 0%, transparent 50%),
+      var(--bg);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    opacity: 0.85;
+    /* 使用 clip-path 强制裁剪掉任何可能的角部溢出 */
+    clip-path: inset(0 round 14px);
+    /* 改回 box-shadow，并在透明窗口下使用 inset 模拟或外发光 */
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 10px 40px rgba(0, 0, 0, 0.6);
+    transition: opacity 0.35s ease, filter 0.35s ease, box-shadow 0.35s ease;
+    position: relative;
+    --flow: 0deg;
+  }
+  body:hover .shell {
+    opacity: 1;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 12px 48px rgba(0, 0, 0, 0.7);
+  }
+  /* 顺时针流光边框 */
+  .shell::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 14px;
+    padding: 1.5px; /* 边框厚度 */
+    background:
+      conic-gradient(from var(--flow),
+        rgba(53, 211, 255, 0) 0deg,
+        rgba(53, 211, 255, 1) 90deg,
+        rgba(124, 92, 255, 1) 180deg,
+        rgba(255, 200, 97, 1) 270deg,
+        rgba(53, 211, 255, 0) 360deg);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+    z-index: 100;
+    animation: borderFlow 4s linear infinite;
+  }
+  @property --flow { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+  @keyframes borderFlow { to { --flow: 360deg; } }
+
+  /* 标题栏：整条可作为拖动区域 */
+  header.titlebar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px 8px;
+    cursor: grab;
+  }
+  [data-drag] { cursor: grab; }
+  .brand { font-size: 15px; font-weight: 700; letter-spacing: 2px; color: var(--accent); }
+  .actions { display: flex; gap: 6px; }
+  .icon-btn {
+    min-width: 26px; height: 24px; padding: 0 8px;
+    border-radius: 6px; border: 1px solid transparent;
+    background: transparent; color: var(--muted); cursor: pointer;
+    font-size: 14px; font-family: inherit;
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 3px; transition: all 0.15s ease;
+  }
+  .icon-btn:hover { background: rgba(255,255,255,0.08); color: var(--text); }
+  .icon-btn.active { color: var(--accent); border-color: rgba(53,211,255,0.35); }
+  .icon-btn.busy { color: var(--cyan); animation: spin 0.9s linear infinite; }
+
+  /* 网页版顶部导航（仅浏览器访问时显示，桌面应用窗口内隐藏） */
+  .site-bar {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .site-brand { display: flex; flex-direction: column; }
+  .site-brand .t { font-size: 17px; font-weight: 800; letter-spacing: 4px; color: var(--accent); }
+  .site-brand .s {
+    margin-top: 2px; font-size: 10px; font-weight: 500;
+    letter-spacing: 1px; color: var(--muted);
+  }
+  .site-links { display: flex; gap: 8px; }
+  .site-links .hero-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 10px 18px;
+    font-size: 13px; font-weight: 700; letter-spacing: 1px;
+    text-decoration: none; white-space: nowrap;
+    border: 1px solid rgba(53, 211, 255, 0.55);
+    border-radius: 0;
+    background: rgba(53, 211, 255, 0.1);
+    color: var(--cyan);
+    transition: all 0.2s ease;
+  }
+  .site-links .hero-btn:hover { background: rgba(53, 211, 255, 0.22); }
+  .site-links .hero-btn.btn-dl {
+    background: var(--cyan); color: #06121f;
+    border-color: var(--cyan);
+    box-shadow: 0 0 16px rgba(53, 211, 255, 0.4);
+  }
+  .site-links .hero-btn.btn-dl:hover { filter: brightness(1.08); }
+  .site-links .hero-btn svg { width: 13px; height: 13px; }
+
+  /* 网页版：隐藏应用窗口栏、展示顶部导航；直角风格适配移动端 */
+  body.in-web .titlebar { display: none; }
+  body.in-web .site-bar { display: flex; }
+  body.in-web .shell { border-radius: 0; clip-path: none; }
+  body.in-web .icon-btn,
+  body.in-web .share-btn,
+  body.in-web .sync-panel,
+  body.in-web .chips .chip { border-radius: 0; }
+
+  .scrl { flex: 1; overflow-y: auto; padding: 4px 16px 12px; scrollbar-width: none; }
+  .scrl::-webkit-scrollbar { display: none; }
+
+  /* 采集中提示条 */
+  .sync-panel {
+    margin-bottom: 12px; padding: 10px 12px;
+    border-radius: 10px;
+    background: linear-gradient(180deg, rgba(12, 28, 48, 0.96), rgba(9, 20, 36, 0.88));
+    border: 1px solid rgba(53, 211, 255, 0.16);
+    display: none;
+  }
+  .sync-panel.visible { display: block; }
+  .sync-meta { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
+  .sync-title { font-size: 14px; font-weight: 600; color: var(--text); }
+  .sync-pct { font-family: var(--mono); font-size: 12px; color: var(--cyan); }
+  .sync-track { height: 6px; border-radius: 999px; background: rgba(255,255,255,0.06); overflow: hidden; }
+  .sync-fill {
+    height: 100%; width: 0%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--cyan), #7c5cff);
+    box-shadow: 0 0 12px rgba(53, 211, 255, 0.35);
+    transition: width 0.3s ease;
+    position: relative;
+  }
+  .sync-fill::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+    animation: syncShimmer 1.4s linear infinite;
+  }
+  .sync-stage { margin-top: 6px; font-size: 12px; color: var(--muted); }
+  .sync-detail { margin-top: 3px; font-size: 12px; color: rgba(238, 244, 255, 0.7); }
+
+  /* 顶部荣誉区 */
+  .hero { text-align: center; padding: 12px 0 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  
+  .main-stats {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 16px;
+    padding: 0;
+  }
+  .stat-group { display: flex; flex-direction: column; align-items: center; }
+  .stat-group.primary { transform: scale(1.1); transform-origin: bottom center; margin: 0 4px; }
+  .stat-divider { width: 1px; height: 24px; background: var(--border); margin-bottom: 6px; }
+
+  .tokens {
+    font-family: var(--hero-font);
+    font-size: 30px; font-weight: 700; line-height: 1;
+    background: linear-gradient(180deg, #fff, #a8dcff 65%, var(--cyan));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    letter-spacing: -1px;
+  }
+  .tokens.tokens-total {
+    font-size: 40px;
+    background: linear-gradient(180deg, #fff, var(--gold) 85%);
+    -webkit-background-clip: text; background-clip: text;
+  }
+  .tokens-label { margin-top: 6px; font-size: 11px; color: var(--muted); font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
+
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; margin-bottom: 20px; padding: 0 10px; }
+  .stat {
+    display: flex; flex-direction: column;
+    padding: 4px 0;
+    border: none; background: transparent;
+  }
+  .stat .k { font-size: 13px; color: var(--muted); letter-spacing: 0.5px; text-transform: uppercase; }
+  .stat .v { font-family: var(--mono); font-size: 19px; font-weight: 600; margin-top: 4px; color: var(--text); }
+
+  .section-title {
+    font-size: 11px; font-weight: 600; color: var(--muted);
+    letter-spacing: 1px; margin-bottom: 12px; text-transform: uppercase;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-title::after { display: none; } /* Remove divider line */
+
+  /* Token 等级分布（饼图） */
+  .level-distribution {
+    background: transparent; border: none;
+    padding: 0 10px; margin-bottom: 20px;
+    display: flex; align-items: center; gap: 24px;
+  }
+  .pie-container {
+    width: 80px; height: 80px; position: relative; flex-shrink: 0;
+  }
+  .pie-svg { transform: rotate(-90deg); width: 100%; height: 100%; }
+  .pie-segment { fill: none; stroke-width: 12; transition: stroke-dasharray 0.6s ease; }
+  .pie-segment.high { stroke: var(--gold); }
+  .pie-segment.medium { stroke: var(--cyan); }
+  .pie-segment.low { stroke: #4a5568; }
+  .pie-center {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 10px; color: var(--muted); font-family: var(--hero-font);
+  }
+
+  .level-legend { display: flex; flex-direction: column; gap: 8px; flex: 1; }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); }
+  .legend-item span { font-family: var(--hero-font); color: var(--muted); margin-left: auto; font-size: 11px; }
+  .legend-item .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .legend-item .dot.high { background: var(--gold); box-shadow: 0 0 6px rgba(255, 200, 97, 0.4); }
+  .legend-item .dot.medium { background: var(--cyan); box-shadow: 0 0 6px rgba(53, 211, 255, 0.4); }
+  .legend-item .dot.low { background: #4a5568; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 10px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 12px; padding: 4px 10px; border-radius: 999px;
+    border: 1px solid var(--border); color: var(--muted); background: rgba(255,255,255,0.03);
+  }
+  .chip .dot { width: 5px; height: 5px; border-radius: 50%; }
+  .chip.ready .dot { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .chip.partial .dot { background: var(--gold); box-shadow: 0 0 6px var(--gold); }
+  .chip.unavailable .dot { background: #5a6b85; }
+  .chip.ready { color: var(--text); border-color: rgba(63,224,166,0.35); }
+
+  footer {
+    padding: 8px 16px 10px;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 12px; color: var(--muted);
+    border-top: 1px solid var(--border);
+  }
+  .live { display: flex; align-items: center; gap: 5px; color: var(--green); }
+  .live::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; box-shadow: 0 0 6px currentColor; }
+
+  footer .dl-link {
+    display: inline-flex; align-items: center; gap: 4px;
+    color: var(--cyan); text-decoration: none; font-size: 12px;
+    white-space: nowrap;
+  }
+  footer .dl-link:hover { text-decoration: underline; }
+  footer .dl-link svg { width: 11px; height: 11px; flex-shrink: 0; }
+  footer .footer-links { display: flex; align-items: center; gap: 12px; }
+  footer .footer-links .sep { width: 1px; height: 10px; background: var(--border); }
+  footer.hide-download .dl-link { display: none; }
+
+  .error-msg {
+    margin: 0 16px 12px; padding: 8px 12px;
+    font-size: 13px; color: var(--danger); word-break: break-all;
+    background: rgba(255, 123, 143, 0.08); border: 1px solid rgba(255, 123, 143, 0.3); border-radius: 8px;
+  }
+
+  @keyframes syncShimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+  /* 猛蹬动画 - 居中大型版 */
+  .pedaling-badge {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.8);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 1000;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    /* 边缘模糊阴影效果，增加视觉分离感 */
+    filter: drop-shadow(0 0 15px rgba(0, 0, 0, 0.8)) drop-shadow(0 0 5px rgba(53, 211, 255, 0.2));
+  }
+  .pedaling-badge.active {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  /* 徽章未显示时暂停全部内部动画，读取完成后立即定格 */
+  .pedaling-badge:not(.active) * {
+    animation-play-state: paused;
+  }
+  .pedaling-text {
+    font-family: var(--hero-font);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--cyan);
+    letter-spacing: 2px;
+    animation: pulseText 0.5s infinite alternate;
+  }
+  
+  /* SVG 动画细节 */
+  @keyframes pulseText {
+    from { opacity: 0.7; }
+    to { opacity: 1; text-shadow: 0 0 12px var(--cyan); }
+  }
+  @keyframes wheelSpin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  /* 车轮：动画作用于内层 g（本地坐标中心即轮毂），外层 g 负责定位，
+     避免 CSS 动画覆盖 transform 定位导致车轮飞走 */
+  .bike-wheel {
+    animation: wheelSpin 1s linear infinite;
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  
+  .leg-link-backdrop {
+    stroke: rgba(10, 18, 32, 0.78);
+    stroke-width: 6.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .leg-link {
+    stroke-width: 4.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .leg-link.front { stroke: var(--cyan); }
+  .leg-link.back { stroke: #506788; }
+  .leg-foot {
+    stroke: #eef4ff;
+    stroke-width: 3.2;
+    stroke-linecap: round;
+  }
+  .leg-joint {
+    fill: #eef4ff;
+    stroke: rgba(10, 18, 32, 0.45);
+    stroke-width: 1.2;
+  }
+  
+  /* 大嘴开合（喘气）：上喙绕嘴根抬起来，下喙绕嘴根压下去，两者反向分离，绝不重叠 */
+  @keyframes beakPant {
+    0%, 45% { transform: rotate(0deg); }
+    60%, 85% { transform: rotate(-10deg); }
+    100% { transform: rotate(0deg); }
+  }
+  @keyframes lowerBeakPant {
+    0%, 45% { transform: rotate(0deg); }
+    60%, 85% { transform: rotate(12deg); }
+    100% { transform: rotate(0deg); }
+  }
+  .beak-top { transform-box: fill-box; transform-origin: 0% 90%; animation: beakPant 0.7s ease-in-out infinite; }
+  .beak-bottom { transform-box: fill-box; transform-origin: 0% 10%; animation: lowerBeakPant 0.7s ease-in-out infinite; }
+  .beak-seam {
+    stroke: rgba(95, 54, 10, 0.55);
+    stroke-width: 1;
+    stroke-linecap: round;
+    fill: none;
+  }
+  
+  .crank-arm {
+    stroke: rgba(255, 255, 255, 0.42);
+    stroke-width: 1.8;
+    stroke-linecap: round;
+  }
+  .pedal-body {
+    fill: #9fb2cc;
+  }
+  .pedal-top {
+    fill: #f4f8ff;
+  }
+  .chainring,
+  .crank-assembly {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  
+  @keyframes bodyBounce {
+    0% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-4px) rotate(3deg); }
+    100% { transform: translateY(0) rotate(0deg); }
+  }
+  .pelican-body { transform-origin: 45px 55px; animation: bodyBounce 0.2s infinite linear; }
+  
+  /* 翅膀拍打保持平衡 */
+  @keyframes wingFlap {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(-15deg); }
+  }
+  .wing { transform-origin: 30px 40px; animation: wingFlap 0.2s infinite alternate ease-in-out; }
+
+  @keyframes sweatFly {
+    0% { transform: translate(0, 0); opacity: 1; }
+    100% { transform: translate(12px, -8px); opacity: 0; }
+  }
+  .sweat { animation: sweatFly 0.4s infinite; }
+  .sweat:nth-child(2) { animation-delay: 0.2s; }
+
+  /* 分享今日蹬值按钮 */
+  .share-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    margin-top: 12px; padding: 8px 20px;
+    border-radius: 999px; cursor: pointer;
+    border: 1px solid rgba(255, 200, 97, 0.55);
+    background: linear-gradient(180deg, rgba(255, 200, 97, 0.2), rgba(124, 92, 255, 0.14));
+    color: var(--gold);
+    font-size: 12px; font-weight: 700; letter-spacing: 1px; font-family: inherit;
+    box-shadow: 0 0 16px rgba(255, 200, 97, 0.2);
+    transition: all 0.2s ease;
+  }
+  .share-btn:hover {
+    background: linear-gradient(180deg, rgba(255, 200, 97, 0.34), rgba(124, 92, 255, 0.2));
+    color: #ffe9b8; transform: translateY(-1px);
+    box-shadow: 0 0 26px rgba(255, 200, 97, 0.4);
+  }
+
+  /* 分享模态 */
+  .share-overlay {
+    position: fixed; inset: 0; z-index: 2000;
+    display: none; align-items: stretch; justify-content: center;
+    background: rgba(5, 8, 16, 0.72); backdrop-filter: blur(6px);
+    padding: 0; overflow: hidden;
+  }
+  .share-overlay.visible { display: flex; }
+  .share-modal {
+    width: 100%; max-width: none;
+    border-radius: 0;
+    background: linear-gradient(180deg, rgba(10, 18, 32, 0.98), rgba(6, 11, 22, 0.98));
+    border: none;
+    padding: 0 14px 10px;
+    display: flex; flex-direction: column;
+    box-shadow: none;
+  }
+  .share-head {
+    display: flex; align-items: center;
+    margin-bottom: 2px; min-height: 30px; padding-top: 0;
+  }
+  .share-title-block {
+    flex: 1; min-width: 0; text-align: center;
+    margin: 0 10px; line-height: 1.25;
+  }
+  .share-title { font-size: 15px; font-weight: 700; letter-spacing: 2px; color: var(--gold); }
+  .share-close {
+    flex: 0 0 auto; width: 74px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+    padding: 6px 8px; border-radius: 8px;
+    border: 1px solid var(--border); background: rgba(255,255,255,0.04);
+    color: var(--text); cursor: pointer; font-size: 12px; font-weight: 600;
+    font-family: inherit; transition: all 0.15s ease; white-space: nowrap;
+  }
+  .share-close:hover { background: rgba(255,255,255,0.1); color: var(--gold); border-color: rgba(255,200,97,0.4); }
+  .share-style-switch {
+    flex: 0 0 auto; width: 74px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+    padding: 5px 8px; border-radius: 8px;
+    border: 1px solid rgba(255,200,97,0.35); background: rgba(255,200,97,0.06);
+    color: var(--gold); cursor: pointer; font-size: 11px; font-weight: 600;
+    font-family: inherit; transition: all 0.15s ease; white-space: nowrap;
+  }
+  .share-style-switch:hover { background: rgba(255,200,97,0.12); border-color: rgba(255,200,97,0.6); }
+  .share-preview-wrap {
+    flex: 1; min-height: 0;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  .share-preview {
+    max-width: 100%; max-height: 100%;
+    width: auto; height: auto;
+    border-radius: 10px; display: block;
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+  .share-actions { display: flex; gap: 8px; margin-top: 2px; }
+  .share-copy {
+    flex: 1; padding: 10px 0; border-radius: 10px; cursor: pointer;
+    border: 1px solid rgba(255,200,97,0.6);
+    background: linear-gradient(180deg, #ffd75e, #f0a83a);
+    color: #241403; font-size: 14px; font-weight: 800; letter-spacing: 1px; font-family: inherit;
+    box-shadow: 0 0 18px rgba(255,200,97,0.35);
+    transition: all 0.15s ease;
+  }
+  .share-copy:hover { transform: translateY(-1px); box-shadow: 0 0 28px rgba(255,200,97,0.55); }
+  .share-copy:active { transform: translateY(0); }
+  .share-tip { margin: 4px auto 0; max-width: 460px; width: 100%; font-size: 10px; color: var(--muted); text-align: center; line-height: 1.4; }
+  .share-tip strong { color: #ffffff; font-weight: 700; }
+  .toast {
+    position: fixed; left: 50%; bottom: 28px;
+    transform: translateX(-50%) translateY(24px);
+    background: rgba(10, 20, 34, 0.96);
+    border: 1px solid rgba(63, 224, 166, 0.5);
+    color: var(--green); font-size: 12px; font-weight: 600;
+    padding: 9px 18px; border-radius: 999px;
+    opacity: 0; pointer-events: none;
+    transition: all 0.3s ease; z-index: 3000;
+    max-width: 80vw; text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.error { border-color: rgba(255,123,143,0.5); color: var(--danger); }
+</style>
+</head>
+<body>
+  <script src="ranks.js"></script>
+  <script src="qrcode.js"></script>
+  <script src="collector.js"></script>
+  <div class="shell">
+    <div class="site-bar" id="siteBar">
+      <div class="site-brand">
+        <span class="t">TOKEN统计</span>
+        <span class="s">本地 AI Token 用量计量</span>
+      </div>
+      <div class="site-links">
+        <a class="hero-btn btn-dl" href="downloads/TokenMetrics.exe" download>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M2.5 13.5h11"/>
+          </svg>
+          下载桌面端
+        </a>
+        <a class="hero-btn" id="leaderboardLink" href="leaderboard.html">排行榜</a>
+      </div>
+    </div>
+    <header class="titlebar" id="titlebar" data-drag>
+      <div class="brand">TOKEN统计</div>
+      <div class="actions">
+        <button class="icon-btn" id="pinBtn" title="置顶">置顶</button>
+        <button class="icon-btn" id="refreshBtn" title="刷新">刷新</button>
+        <button class="icon-btn" id="closeBtn" title="隐藏到托盘">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 21h16" />
+            <path d="M12 3v12" />
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
+        <button class="icon-btn" id="quitBtn" title="关闭">&#x2715;</button>
+      </div>
+    </header>
+
+    <div class="scrl">
+      <div class="sync-panel" id="syncPanel">
+        <div class="sync-meta">
+          <div class="sync-title" id="syncTitle">正在静默采集本地数据</div>
+          <div class="sync-pct" id="syncPercent">0%</div>
+        </div>
+        <div class="sync-track"><div class="sync-fill" id="syncFill"></div></div>
+        <div class="sync-stage" id="syncStage">正在准备采集器…</div>
+        <div class="sync-detail" id="syncDetail">采集阶段会随真实进度更新</div>
+      </div>
+
+      <div class="hero" data-drag>
+        <div class="main-stats">
+          <div class="stat-group primary">
+            <div class="tokens tokens-total" id="todayTokens">0</div>
+            <div class="tokens-label">今日 Tokens</div>
+          </div>
+        </div>
+        <button class="share-btn" id="shareBtn">分享今日蹬值</button>
+      </div>
+
+      <div class="stats" id="statsGrid"></div>
+      <div id="errorBox"></div>
+
+      <div class="section-title">Token 等级分布</div>
+      <div id="levelDistribution" class="level-distribution">
+        <div class="pie-container">
+          <svg class="pie-svg" viewBox="0 0 100 100">
+            <circle class="pie-segment low" id="pieLow" cx="50" cy="50" r="40"></circle>
+            <circle class="pie-segment medium" id="pieMedium" cx="50" cy="50" r="40"></circle>
+            <circle class="pie-segment high" id="pieHigh" cx="50" cy="50" r="40"></circle>
+          </svg>
+          <div class="pie-center">LEVELS</div>
+        </div>
+        <div class="level-legend">
+          <div class="legend-item"><span class="dot high"></span>高级 <span id="pctHigh">0%</span></div>
+          <div class="legend-item"><span class="dot medium"></span>中级 <span id="pctMedium">0%</span></div>
+          <div class="legend-item"><span class="dot low"></span>低级 <span id="pctLow">0%</span></div>
+        </div>
+      </div>
+
+      <div class="section-title" style="margin-top:14px; padding: 0 10px;">数据来源</div>
+      <div class="chips" id="collectors"></div>
+    </div>
+
+    <div class="pedaling-badge" id="pedalingBadge">
+      <svg class="pelican-svg" viewBox="0 0 100 100" width="120" height="120">
+        <defs>
+          <g id="wheel">
+            <!-- Tire -->
+            <circle cx="0" cy="0" r="15" fill="none" stroke="#93a6c3" stroke-width="2.5"/>
+            <!-- Rim -->
+            <circle cx="0" cy="0" r="13" fill="none" stroke="#121c2e" stroke-width="2"/>
+            <!-- Hub -->
+            <circle cx="0" cy="0" r="2.5" fill="#35d3ff"/>
+            <!-- Spokes -->
+            <line x1="0" y1="-15" x2="0" y2="15" stroke="#93a6c3" stroke-width="0.5" opacity="0.6"/>
+            <line x1="-15" y1="0" x2="15" y2="0" stroke="#93a6c3" stroke-width="0.5" opacity="0.6"/>
+            <line x1="-10.6" y1="-10.6" x2="10.6" y2="10.6" stroke="#93a6c3" stroke-width="0.5" opacity="0.6"/>
+            <line x1="-10.6" y1="10.6" x2="10.6" y2="-10.6" stroke="#93a6c3" stroke-width="0.5" opacity="0.6"/>
+          </g>
+        </defs>
+        <!-- Bike Wheels：外层 transform 负责定位，内层负责旋转动画 -->
+        <g transform="translate(25, 75)"><g class="bike-wheel"><use href="#wheel"/></g></g>
+        <g transform="translate(75, 75)"><g class="bike-wheel"><use href="#wheel"/></g></g>
+
+        <g class="leg-back">
+          <line class="leg-link-backdrop" id="backThighBack" x1="41" y1="49" x2="38" y2="58"/>
+          <line class="leg-link back" id="backThigh" x1="41" y1="49" x2="38" y2="58"/>
+          <line class="leg-link-backdrop" id="backCalfBack" x1="38" y1="58" x2="42" y2="67"/>
+          <line class="leg-link back" id="backCalf" x1="38" y1="58" x2="42" y2="67"/>
+          <line class="leg-foot" id="backFoot" x1="40" y1="67" x2="44" y2="67"/>
+          <circle class="leg-joint" id="backKnee" cx="38" cy="58" r="2.1"/>
+        </g>
+        
+        <!-- 左脚踏：紧随左脚之后（车架之下），会被车架/牙盘遮挡 -->
+        <g id="back-drive">
+          <g class="crank-assembly">
+            <line class="crank-arm" id="backCrankArm" x1="50" y1="72" x2="41.4" y2="66.8"/>
+            <rect class="pedal-body" id="backPedalBody" x="39.1" y="65.3" width="4.8" height="3" rx="1.1"/>
+            <rect class="pedal-top" id="backPedalTop" x="38.4" y="63.4" width="6.2" height="2.1" rx="1"/>
+          </g>
+        </g>
+
+        <!-- Bike Frame -->
+        <path d="M 25 75 L 50 72 M 25 75 L 44 50 M 50 72 L 44 50 M 50 72 L 60 42 M 44 50 L 60 42 M 44 50 L 44 46 L 48 46 M 60 42 L 75 75 M 60 42 L 62 37 M 57 37 L 67 37 M 57 37 L 56 40 M 67 37 L 68 40" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        
+        <!-- 牙盘 + 右脚踏：车架之上、右脚之下 -->
+        <g id="drivetrain">
+          <circle cx="50" cy="72" r="6" fill="none" stroke="var(--cyan)" stroke-width="1.5" class="chainring" stroke-dasharray="3 3"/>
+          <circle cx="50" cy="72" r="1.5" fill="var(--cyan)"/>
+          <g class="crank-assembly">
+            <line class="crank-arm" id="frontCrankArm" x1="50" y1="72" x2="58.6" y2="77.2"/>
+            <rect class="pedal-body" id="frontPedalBody" x="57.1" y="75.8" width="4.8" height="3" rx="1.1"/>
+            <rect class="pedal-top" id="frontPedalTop" x="56.4" y="73.9" width="6.2" height="2.1" rx="1"/>
+          </g>
+        </g>
+
+        <!-- Pelican Body -->
+        <g class="pelican-body">
+          <!-- Tail -->
+          <path d="M 26 46 C 18 44, 14 38, 18 34 C 24 36, 28 40, 30 44 Z" fill="#c3d2ea"/>
+          <!-- Main Body -->
+          <path d="M 28 50 C 20 38, 26 24, 40 24 C 52 24, 56 36, 54 46 C 52 56, 34 58, 28 50 Z" fill="#f4f8ff"/>
+          <!-- Wing -->
+          <path d="M 34 34 C 44 30, 54 36, 48 46 C 40 50, 30 44, 34 34 Z" fill="#d5e2f5" class="wing"/>
+          <!-- Neck -->
+          <path d="M 40 26 C 42 18, 46 14, 52 13 C 56 13, 56 21, 50 25 C 46 27, 42 27, 40 26 Z" fill="#f4f8ff"/>
+          <!-- Head -->
+          <circle cx="54" cy="12" r="5.5" fill="#f4f8ff"/>
+          <!-- 上喙（开合喘气） -->
+          <g class="beak-top">
+            <path d="M 58 10 C 72 2, 88 8, 86 15 C 80 17, 70 14, 58 14 Z" fill="var(--gold)"/>
+          </g>
+          <!-- 下喙：围绕嘴根开合，始终连在头部 -->
+          <g class="beak-bottom">
+            <path d="M 57.55 15.05 C 65.2 16.15, 74.6 17.05, 80.25 18.55 C 72.8 21.25, 63.4 20.65, 58.3 18.45 C 57.7 17.25, 57.35 16.05, 57.55 15.05 Z" fill="#ff9c3a"/>
+            <path d="M 57.65 15.1 C 61.1 14.95, 64.2 14.95, 67.3 15.3" class="beak-seam"/>
+          </g>
+          <!-- Eye -->
+          <circle cx="52" cy="11" r="1.6" fill="#121c2e"/>
+          <circle cx="52.6" cy="10.6" r="0.6" fill="#fff"/>
+          <!-- Sweat/Tears -->
+          <path d="M 63 4 Q 67 0 67 4" fill="none" stroke="var(--cyan)" stroke-width="1.5" class="sweat"/>
+          <path d="M 58 2 Q 62 -2 62 2" fill="none" stroke="var(--cyan)" stroke-width="1.5" class="sweat"/>
+        </g>
+        
+        <g class="leg-front">
+          <line class="leg-link-backdrop" id="frontThighBack" x1="44" y1="50" x2="48" y2="61"/>
+          <line class="leg-link front" id="frontThigh" x1="44" y1="50" x2="48" y2="61"/>
+          <line class="leg-link-backdrop" id="frontCalfBack" x1="48" y1="61" x2="58" y2="77"/>
+          <line class="leg-link front" id="frontCalf" x1="48" y1="61" x2="58" y2="77"/>
+          <line class="leg-foot" id="frontFoot" x1="56" y1="77" x2="61" y2="77"/>
+          <circle class="leg-joint" id="frontKnee" cx="48" cy="61" r="2.2"/>
+        </g>
+      </svg>
+      <span class="pedaling-text">猛蹬中...</span>
+    </div>
+
+    <footer data-drag>
+      <div class="live">实时监测</div>
+      <div class="footer-links">
+        <a class="dl-link" id="downloadLink" href="downloads/TokenMetrics.exe" download>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M2.5 13.5h11"/>
+          </svg>
+          下载桌面端
+        </a>
+        <span class="sep"></span>
+        <a class="dl-link" href="leaderboard.html">排行榜</a>
+      </div>
+      <div id="updatedAt">刚刚</div>
+    </footer>
+  </div>
+
+  <div class="share-overlay" id="shareOverlay">
+    <div class="share-modal">
+      <div class="share-head">
+        <button class="share-close" id="shareClose">&#x2190;&nbsp;返回</button>
+        <div class="share-title-block">
+          <div class="share-title">分享今日蹬值</div>
+        </div>
+        <button class="share-style-switch" id="shareStyleSwitch">切换风格</button>
+      </div>
+      <div class="share-preview-wrap">
+        <canvas class="share-preview" id="sharePreview" width="0" height="0"></canvas>
+      </div>
+      <div class="share-actions">
+        <button class="share-copy" id="shareCopy">复制今日蹬值图片</button>
+      </div>
+      <div class="share-tip">复制后可直接粘贴到微信群 / 朋友圈<br><strong>AI时代，率先成为Token大户</strong></div>
+    </div>
+  </div>
+  <div class="toast" id="shareToast"></div>
+
+<script>
+(function () {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const nf = new Intl.NumberFormat("zh-CN");
+
+  function formatBig(n) {
+    n = Number(n || 0);
+    if (n >= 1e8) return Math.round(n / 1e8) + " 亿";
+    if (n >= 1e4) return Math.round(n / 1e4) + " 万";
+    return nf.format(n);
+  }
+
+  let lastTotalTokens = -1;
+  let pedalingTimeout = null;
+  let pelicanRaf = null;
+  let shareData = null;
+  let shareStyle = "gold";
+
+  function stopPelicanAnimation() {
+    if (pelicanRaf) {
+      cancelAnimationFrame(pelicanRaf);
+      pelicanRaf = null;
+    }
+  }
+
+  function stopPedaling() {
+    const badge = $("pedalingBadge");
+    if (badge) badge.classList.remove("active");
+    clearTimeout(pedalingTimeout);
+    stopPelicanAnimation();
+  }
+
+  function triggerPedaling() {
+    const badge = $("pedalingBadge");
+    if (!badge) return;
+    badge.classList.add("active");
+    clearTimeout(pedalingTimeout);
+    pedalingTimeout = setTimeout(() => {
+      badge.classList.remove("active");
+      stopPelicanAnimation();
+    }, 4000);
+    startPelicanAnimation();
+  }
+
+  function setLine(line, x1, y1, x2, y2) {
+    if (!line) return;
+    line.setAttribute("x1", x1.toFixed(2));
+    line.setAttribute("y1", y1.toFixed(2));
+    line.setAttribute("x2", x2.toFixed(2));
+    line.setAttribute("y2", y2.toFixed(2));
+  }
+
+  function setRect(rect, x, y, width, height, angle) {
+    if (!rect) return;
+    rect.setAttribute("x", x.toFixed(2));
+    rect.setAttribute("y", y.toFixed(2));
+    rect.setAttribute("width", width.toFixed(2));
+    rect.setAttribute("height", height.toFixed(2));
+    const cx = x + width / 2;
+    const cy = y + height / 2;
+    rect.setAttribute("transform", `rotate(${angle.toFixed(2)} ${cx.toFixed(2)} ${cy.toFixed(2)})`);
+  }
+
+  function solveKnee(hip, foot, upperLen, lowerLen, bendSide) {
+    const dx = foot.x - hip.x;
+    const dy = foot.y - hip.y;
+    const dist = Math.max(0.001, Math.hypot(dx, dy));
+    const clamped = Math.min(dist, upperLen + lowerLen - 0.001);
+    const ux = dx / dist;
+    const uy = dy / dist;
+    const a = (upperLen * upperLen - lowerLen * lowerLen + clamped * clamped) / (2 * clamped);
+    const h = Math.sqrt(Math.max(upperLen * upperLen - a * a, 0));
+    const mx = hip.x + ux * a;
+    const my = hip.y + uy * a;
+    const px = -uy * h * bendSide;
+    const py = ux * h * bendSide;
+    return { x: mx + px, y: my + py };
+  }
+
+  function drawLeg(parts, hip, foot, upperLen, lowerLen, bendSide, footAngle, footHalf) {
+    const knee = solveKnee(hip, foot, upperLen, lowerLen, bendSide);
+    setLine(parts.thighBack, hip.x, hip.y, knee.x, knee.y);
+    setLine(parts.thigh, hip.x, hip.y, knee.x, knee.y);
+    setLine(parts.calfBack, knee.x, knee.y, foot.x, foot.y);
+    setLine(parts.calf, knee.x, knee.y, foot.x, foot.y);
+
+    const footRadius = footHalf || 3.2;
+    const fx = Math.cos(footAngle) * footRadius;
+    const fy = Math.sin(footAngle) * footRadius;
+    setLine(parts.foot, foot.x - fx, foot.y - fy, foot.x + fx, foot.y + fy);
+
+    if (parts.knee) {
+      parts.knee.setAttribute("cx", knee.x.toFixed(2));
+      parts.knee.setAttribute("cy", knee.y.toFixed(2));
+    }
+  }
+
+  function startPelicanAnimation() {
+    if (pelicanRaf) return; // 循环已在运行时直接退出，无需重复初始化
+
+    const svg = document.querySelector(".pelican-svg");
+    if (!svg) return;
+
+    const drivetrain = svg.querySelector("#drivetrain");
+    const backDrive = svg.querySelector("#back-drive");
+
+    const frontLeg = {
+      thighBack: svg.querySelector("#frontThighBack"),
+      thigh: svg.querySelector("#frontThigh"),
+      calfBack: svg.querySelector("#frontCalfBack"),
+      calf: svg.querySelector("#frontCalf"),
+      foot: svg.querySelector("#frontFoot"),
+      knee: svg.querySelector("#frontKnee")
+    };
+    const backLeg = {
+      thighBack: svg.querySelector("#backThighBack"),
+      thigh: svg.querySelector("#backThigh"),
+      calfBack: svg.querySelector("#backCalfBack"),
+      calf: svg.querySelector("#backCalf"),
+      foot: svg.querySelector("#backFoot"),
+      knee: svg.querySelector("#backKnee")
+    };
+
+    const config = {
+      center: { x: 50, y: 72 },
+      crankRadius: 10,
+      frontHip: { x: 43.6, y: 49.8 },
+      backHip: { x: 40.8, y: 48.7 },
+      frontUpper: 12.8,
+      frontLower: 18.4,
+      backUpper: 11.6,
+      backLower: 14.8,
+      footAngle: Math.PI / 10,
+      cycleMs: 980,
+      startAngle: Math.PI / 6
+    };
+
+    const start = performance.now();
+
+    function renderFrame(now) {
+      // 徽章不再显示时立即停下，避免读取完成后动画仍在后台空转
+      const badge = $("pedalingBadge");
+      if (!badge || !badge.classList.contains("active")) {
+        pelicanRaf = null;
+        return;
+      }
+      const t = ((now - start) % config.cycleMs) / config.cycleMs;
+      const angle = config.startAngle + t * Math.PI * 2;
+      const frontPedal = {
+        x: config.center.x + Math.cos(angle) * config.crankRadius,
+        y: config.center.y + Math.sin(angle) * config.crankRadius
+      };
+      const backPedal = {
+        x: config.center.x - Math.cos(angle) * config.crankRadius,
+        y: config.center.y - Math.sin(angle) * config.crankRadius
+      };
+      const backHiddenFoot = {
+        x: config.center.x + (backPedal.x - config.center.x) * 0.76,
+        y: config.center.y + (backPedal.y - config.center.y) * 0.76
+      };
+
+      if (drivetrain) {
+        // 牙盘+前曲柄+前脚踏：组刚体整体旋转（静态坐标已按 startAngle 定向），旋转 δ=angle-startAngle
+        drivetrain.setAttribute(
+          "transform",
+          `rotate(${((angle - config.startAngle) * 180 / Math.PI).toFixed(2)} ${config.center.x} ${config.center.y})`
+        );
+      }
+      if (backDrive) {
+        // 后曲柄+后脚踏：与牙盘刚体同角度旋转（初始即反相位 180°）
+        backDrive.setAttribute(
+          "transform",
+          `rotate(${((angle - config.startAngle) * 180 / Math.PI).toFixed(2)} ${config.center.x} ${config.center.y})`
+        );
+      }
+
+      drawLeg(frontLeg, config.frontHip, frontPedal, config.frontUpper, config.frontLower, 1, config.footAngle, 3.2);
+      drawLeg(backLeg, config.backHip, backHiddenFoot, config.backUpper, config.backLower, -1, -config.footAngle, 1.65);
+
+      pelicanRaf = window.requestAnimationFrame(renderFrame);
+    }
+
+    pelicanRaf = window.requestAnimationFrame(renderFrame);
+  }
+
+  async function fetchPayload() {
+    if (window.__TAURI__ && window.tokenHallCollect) {
+      // WebView 内执行采集：进度通过回调直接上报，无需 Rust 进程外 node.exe
+      const raw = await window.tokenHallCollect((u) =>
+        updateProgress(
+          Number(u.progress || 0),
+          u.label || "正在采集本地数据",
+          u.detail || "",
+          u.phase && String(u.phase).startsWith("collector:")
+            ? "正在同步各数据源进度"
+            : "正在静默采集本地数据"
+        )
+      );
+      return JSON.parse(raw);
+    }
+    const res = await fetch("/api/summary");
+    return res.json();
+  }
+
+  function render(payload) {
+    const s = payload.summary || {};
+    const total = s.totalTokens || 0;
+    
+    // 如果 token 增加，触发猛蹬动画
+    if (lastTotalTokens !== -1 && total > lastTotalTokens) {
+      triggerPedaling();
+    }
+    lastTotalTokens = total;
+
+    const today = s.todayTokens || 0;
+    const week = s.weekTokens || 0;
+
+    $("todayTokens").textContent = formatBig(today);
+
+    $("statsGrid").innerHTML =
+      metric("活跃天数", s.activeDays || 0) +
+      metric("7天 Tokens", week ? formatBig(week) : "0") +
+      metric("累计 Tokens", formatBig(total)) +
+      metric("日均 Tokens", s.activeDays ? formatBig(total / s.activeDays) : "0");
+
+    // Token 等级分布（饼图绘制）
+    const lvData = s.levels || { high: 0, medium: 0, low: 0 };
+    const h = lvData.high || 0;
+    const m = lvData.medium || 0;
+    const l = lvData.low || 0;
+    const totalCount = h + m + l || 1;
+
+    const hPct = Math.round((h / totalCount) * 100);
+    const mPct = Math.round((m / totalCount) * 100);
+    const lPct = 100 - hPct - mPct;
+
+    $("pctHigh").textContent = hPct + "%";
+    $("pctMedium").textContent = mPct + "%";
+    $("pctLow").textContent = lPct + "%";
+
+    // SVG 饼图计算: 周长 = 2 * PI * 40 = 251.327
+    const circ = 251.327;
+    const hVal = (h / totalCount) * circ;
+    const mVal = (m / totalCount) * circ;
+    const lVal = (l / totalCount) * circ;
+
+    $("pieHigh").style.strokeDasharray = `${hVal} ${circ}`;
+    $("pieHigh").style.strokeDashoffset = 0;
+
+    $("pieMedium").style.strokeDasharray = `${mVal} ${circ}`;
+    $("pieMedium").style.strokeDashoffset = -hVal;
+
+    $("pieLow").style.strokeDasharray = `${lVal} ${circ}`;
+    $("pieLow").style.strokeDashoffset = -(hVal + mVal);
+
+    // 处理数据源：按简化后的名称去重并合并状态
+    const collectorGroups = {};
+    (payload.collectors || []).forEach(c => {
+      let name = c.status.displayName || "";
+      if (name.toLowerCase().includes("trae")) {
+        name = "Trae";
+      } else {
+        name = name.replace(/OpenAI |Tencent | International| CN| 国际版/g, "");
+      }
+      
+      const status = c.status.availability || "unavailable";
+      if (!collectorGroups[name]) {
+        collectorGroups[name] = status;
+      } else {
+        // 状态优先级：ready > partial > unavailable
+        const order = { "ready": 3, "partial": 2, "unavailable": 1 };
+        if (order[status] > order[collectorGroups[name]]) {
+          collectorGroups[name] = status;
+        }
+      }
+    });
+
+    $("collectors").innerHTML = Object.entries(collectorGroups)
+      .filter(([, status]) => status !== "unavailable")
+      .map(([name, status]) =>
+        '<span class="chip ' + status + '"><span class="dot"></span>' + name + '</span>'
+      ).join("");
+    $("updatedAt").textContent = "更新于 " + new Date(payload.generatedAt).toLocaleTimeString("zh-CN");
+
+    // 供分享卡片使用的最新统计快照
+    shareData = {
+      today, week, total,
+      activeDays: s.activeDays || 0,
+      generatedAt: payload.generatedAt || new Date().toISOString(),
+      hPct, mPct, lPct,
+      levels: lvData,
+      sources: Object.keys(collectorGroups),
+      reportNo: buildReportNo(s, payload)
+    };
+  }
+
+  // 报告编号：TJ-YYYYMMDD-XXXXXX（X 为数据指纹，同一天同一数据编号稳定，可查验）
+  function buildReportNo(s, payload) {
+    const d = payload.generatedAt ? new Date(payload.generatedAt) : new Date();
+    const ymd = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+    const fp = String(s.totalTokens || 0) + "|" + String(s.todayTokens || 0) + "|" + String(s.activeDays || 0);
+    let h = 2166136261;
+    for (let i = 0; i < fp.length; i++) {
+      h ^= fp.charCodeAt(i);
+      h = (h * 16777619) >>> 0;
+    }
+    return "TJ-" + ymd + "-" + h.toString(16).toUpperCase().padStart(6, "0").slice(-6);
+  }
+
+  function metric(k, v) {
+    return '<div class="stat"><div class="k">' + k + '</div><div class="v" style="font-size:18px">' + v + '</div></div>';
+  }
+
+  // ---------- 采集进度条 ----------
+  let activeRefresh = null;
+  let unlistenProgress = null;
+
+  function updateProgress(p, stage, detail, title) {
+    $("syncPanel").classList.add("visible");
+    $("syncFill").style.width = p + "%";
+    $("syncPercent").textContent = Math.round(p) + "%";
+    $("syncStage").textContent = stage;
+    $("syncDetail").textContent = detail || "正在读取本地证据链";
+    $("syncTitle").textContent = title || "正在静默采集本地数据";
+
+    // 采集中触发猛蹬动画
+    triggerPedaling();
+  }
+
+  async function ensureProgressListener() {
+    if (!window.__TAURI__ || !window.__TAURI__.event || unlistenProgress) return;
+    unlistenProgress = await window.__TAURI__.event.listen("collector-progress", (event) => {
+      const payload = event.payload || {};
+      updateProgress(
+        Number(payload.progress || 0),
+        payload.label || "正在采集本地数据",
+        payload.detail || "",
+        payload.phase && String(payload.phase).startsWith("collector:")
+          ? "正在同步各数据源进度"
+          : "正在静默采集本地数据"
+      );
+    });
+  }
+
+  async function beginProgress() {
+    $("refreshBtn").classList.add("busy");
+    $("errorBox").innerHTML = "";
+    updateProgress(3, "正在连接采集器", "准备读取本地日志与数据库");
+    await ensureProgressListener();
+  }
+
+  function finishProgress(label, detail) {
+    updateProgress(100, label, detail || "本轮采集已完成");
+    // 采集完成：立刻停止猛蹬动画，不等 4 秒倒计时
+    stopPedaling();
+    window.setTimeout(() => {
+      $("syncPanel").classList.remove("visible");
+      $("refreshBtn").classList.remove("busy");
+    }, 500);
+  }
+
+  async function refresh() {
+    if (activeRefresh) return activeRefresh;
+    await beginProgress();
+    activeRefresh = (async () => {
+      try {
+        const payload = await fetchPayload();
+        render(payload);
+        finishProgress("采集完成，统计已更新", "模型分布与来源状态已刷新");
+      } catch (err) {
+        $("refreshBtn").classList.remove("busy");
+        $("syncPanel").classList.remove("visible");
+        stopPedaling();
+        $("errorBox").innerHTML = '<div class="error-msg">采集失败：' + (err.message || err) + '</div>';
+      } finally {
+        activeRefresh = null;
+      }
+    })();
+    return activeRefresh;
+  }
+
+  // ---------- 分享今日蹬值卡片 ----------
+  const SHARE_W = 1080;
+  const SHARE_H = 1620;
+
+  // 战绩验证页部署地址（Cloudflare Pages）。部署后把域名替换为你的 pages.dev 地址
+  const VERIFY_BASE = "https://tokenmetrology.pages.dev/verify";
+
+  // 100条随机金句（简短，不超过一行）
+  const SHARE_SLOGANS = [
+    // 猛蹬型：最贴合醍醐 IP
+    "别人还在问AI，我已经蹬冒烟了", "别人刚上车，我已经蹬飞了", "AI刚开口，我已经蹬出残影", "不怕AI不够强，就怕我蹬太猛",
+    "今天不摸鱼，今天猛蹬Token", "蹬得越狠，Token越稳", "我的AI油门，从来没有松过", "蹬起来，别让Token闲着",
+    "一路猛蹬，直到模型冒烟", "蹬车一时爽，一直蹬一直爽", "只要模型在，我就不停蹬", "今天的我，依旧在猛蹬",
+    "脚下生风，Token生猛", "蹬出风采，蹬出未来", "车轮不息，Token不止", "AI负责思考，我负责猛蹬",
+    "蹬得有多狠，战绩就有多真", "速度不重要，蹬量说了算", "蹬出残影，留下战绩", "我的醍醐，今天又起飞了",
+    // 战绩型：数字就是实力
+    "我的Token，都是蹬出来的", "不晒工资，晒晒我的Token", "别问产出，先看蹬量", "蹬过的路，都算数",
+    "Token不说谎，战绩不会藏", "今日战绩：又蹬了不少", "我的AI浓度，有点超标", "这波Token，蹬得漂亮",
+    "这不是数字，这是我的蹬绩", "数字会说话，我就不多说了", "这份战绩，主打一个能蹬", "越用越顺手，越蹬越上头",
+    "本人不卷，Token挺卷", "这点Token，只是热热身", "还没到极限，别急着鼓掌", "把AI用到冒烟，才叫参与",
+    "我的Token库存，略微有点夸张", "不是在吹牛，是数据太突出", "这战绩，自己看着都踏实", "我的AI里程，已经很可观了",
+    // AI时代型：参与者的自豪感
+    "AI时代，我选择全力猛蹬", "别人围观AI，我在驾驭AI", "AI浪潮来了，我先蹬为敬", "不做旁观者，做个猛蹬者",
+    "时代的车轮，我亲自来蹬", "AI不是未来，是我的日常", "与其讨论AI，不如先蹬起来", "AI时代的参与感，我用Token证明",
+    "不止看热闹，我是真上车", "先用起来，再谈未来", "时代向前，我负责踩油门", "我的AI进度条，已经拉满",
+    "别人谈趋势，我在跑任务", "AI革命现场，有我一脚", "AI不在远方，就在我的车轮下", "用Token给时代留下脚印",
+    "站在AI风口，我负责猛蹬", "AI改变世界，我先改变用法", "不等风来，我自己蹬出风", "我不是AI观众，我是参与者",
+    // 搞笑自嘲型：让人会心一笑
+    "蹬得不算快，就是没停过", "蹬车容易，停下来难", "说好试一下，结果蹬了一整天", "本来只想问一句，结果蹬成这样",
+    "一不小心，又蹬出新纪录", "蹬着蹬着，Token就自由了", "我的脚踏板，已经包浆了", "醍醐很忙，别来打扰",
+    "醍醐不累，Token先累", "醍醐在蹬，世界在等", "车没坏，是我蹬太快", "不是上头，是停不下来",
+    "模型没喊累，我先蹬累了", "今天也在给Token做贡献", "我负责蹬，账单负责疼", "别劝了，真的停不下来",
+    "蹬到忘我，Token记得", "说好轻度使用，结果猛蹬到底", "我的AI使用方式有点费Token", "这不是上瘾，这是热爱",
+    // 凡尔赛型：就是要装一下
+    "这点用量，不值一提", "小小Token，不成敬意", "一般般吧，也就蹬了几千万", "低调一点，蹬得不算少",
+    "不敢说最猛，至少没松脚", "我的AI使用量，略有规模", "稍微认真了一下，就这么多了", "不是大佬，只是比较能蹬",
+    "见笑了，刚好又破纪录", "不鸣则已，一蹬惊人", "蹬得越多，底气越足", "我的战绩，建议直接看图",
+    "话不多说，数据摆这里", "你们先聊，我继续蹬", "不用羡慕，我也刚开始", "让数据替我装个X",
+    "这不是内卷，这是热爱", "不为别的，就想蹬个痛快", "Token榜上，必须有我", "蹬出这个数，我也没想到。",
+    // AI大户型：彰显领先地位
+    "在AI时代，率先成为Token大户", "AI浪潮刚起，我已是Token大户", "抢占AI时代，先做Token大户", "别人还在观望，我已Token自由",
+    "成为第一批AI时代的Token大户", "AI时代，我先把Token用起来", "赶上AI浪潮，争做Token大户", "率先入局，抢先成为AI重度玩家",
+    "AI时代的先行者，Token大户的践行者", "不做AI旁观者，要做Token消耗者", "抢先体验AI，更要抢先消耗Token", "AI时代，我的Token战绩领先一步",
+    "用Token的方式，参与AI时代", "AI进化路上，我已全力开蹬", "先人一步，成为AI重度玩家", "当别人刚入门，我已蹬成Token大户",
+    "让Token见证我赶上了AI时代", "AI时代，先用起来的人先赢", "把握AI时代，做个真正的Token玩家", "这一波AI浪潮，我蹬在前面。"
+  ];
+
+  // 三种风格定义：文案 + 配色（含名字、slogan、别称）
+  const SHARE_STYLES = {
+    gold: {
+      name: "黑金大鱼",
+      bgTop: "#1a1208",
+      bgBottom: "#070503",
+      panel: "rgba(255,214,120,0.08)",
+      panelBorder: "rgba(255,214,120,0.35)",
+      text: "#fff3d6",
+      muted: "#d8b26e",
+      number: "#ffd75e",
+      numberGlow: "rgba(255,215,94,0.5)",
+      accent: "#ffd75e",
+      accent2: "#c98f2c",
+      fish: "#ffb347",
+      line: "rgba(255,245,230,0.6)"
+    },
+    neon: {
+      name: "霓虹赛博",
+      bgTop: "#0a0a1c",
+      bgBottom: "#050609",
+      panel: "rgba(53,211,255,0.08)",
+      panelBorder: "rgba(53,211,255,0.5)",
+      text: "#eaf6ff",
+      muted: "#7fb3d9",
+      number: "#35d3ff",
+      numberGlow: "rgba(53,211,255,0.6)",
+      accent: "#35d3ff",
+      accent2: "#7c5cff",
+      fish: "#35d3ff",
+      line: "rgba(190,235,255,0.7)"
+    },
+    paper: {
+      name: "清新暖阳",
+      bgTop: "#fdf3e3",
+      bgBottom: "#e8f2f7",
+      panel: "rgba(255,255,255,0.85)",
+      panelBorder: "rgba(67,120,150,0.25)",
+      text: "#234a5e",
+      muted: "#6b8fa0",
+      number: "#e8843c",
+      numberGlow: "rgba(232,132,60,0.3)",
+      accent: "#e8843c",
+      accent2: "#2da2c9",
+      fish: "#ff8e5e",
+      line: "rgba(35,74,94,0.55)"
+    },
+    matrix: {
+      name: "暗网矩阵",
+      bgTop: "#0d0d0d",
+      bgBottom: "#000000",
+      panel: "rgba(0, 255, 65, 0.05)",
+      panelBorder: "rgba(0, 255, 65, 0.4)",
+      text: "#00ff41",
+      muted: "#008f11",
+      number: "#00ff41",
+      numberGlow: "rgba(0, 255, 65, 0.6)",
+      accent: "#00ff41",
+      accent2: "#003b00",
+      fish: "#00ff41",
+      line: "rgba(0, 255, 65, 0.5)"
+    },
+    blueprint: {
+      name: "深蓝图纸",
+      bgTop: "#1a365d",
+      bgBottom: "#153e75",
+      panel: "rgba(255, 255, 255, 0.05)",
+      panelBorder: "rgba(163, 191, 250, 0.4)",
+      text: "#e2e8f0",
+      muted: "#a3bffa",
+      number: "#ffffff",
+      numberGlow: "rgba(163, 191, 250, 0.4)",
+      accent: "#80aaff",
+      accent2: "#4a5568",
+      fish: "#80aaff",
+      line: "rgba(163, 191, 250, 0.6)"
+    },
+    pixel: {
+      name: "极客像素",
+      bgTop: "#2d1b4d",
+      bgBottom: "#1a0f2e",
+      panel: "rgba(255, 0, 255, 0.08)",
+      panelBorder: "rgba(0, 255, 255, 0.5)",
+      text: "#ffffff",
+      muted: "#bd93f9",
+      number: "#f1fa8c",
+      numberGlow: "rgba(241, 250, 140, 0.5)",
+      accent: "#ff79c6",
+      accent2: "#8be9fd",
+      fish: "#ffb86c",
+      line: "rgba(139, 233, 253, 0.6)"
+    },
+    lava: {
+      name: "熔岩炼狱",
+      bgTop: "#2b0a00",
+      bgBottom: "#000000",
+      panel: "rgba(255, 69, 0, 0.08)",
+      panelBorder: "rgba(255, 69, 0, 0.5)",
+      text: "#ffe0d6",
+      muted: "#ff6347",
+      number: "#ff4500",
+      numberGlow: "rgba(255, 69, 0, 0.6)",
+      accent: "#ff4500",
+      accent2: "#8b0000",
+      fish: "#ff7f50",
+      line: "rgba(255, 99, 71, 0.6)"
+    },
+    ice: {
+      name: "极寒冰川",
+      bgTop: "#e0f7fa",
+      bgBottom: "#b2ebf2",
+      panel: "rgba(255, 255, 255, 0.4)",
+      panelBorder: "rgba(0, 188, 212, 0.3)",
+      text: "#006064",
+      muted: "#0097a7",
+      number: "#00bcd4",
+      numberGlow: "rgba(0, 188, 212, 0.3)",
+      accent: "#00bcd4",
+      accent2: "#ffffff",
+      fish: "#4dd0e1",
+      line: "rgba(0, 96, 100, 0.4)"
+    },
+    terminal: {
+      name: "古董终端",
+      bgTop: "#1a1a1a",
+      bgBottom: "#0a0a0a",
+      panel: "rgba(255, 176, 0, 0.05)",
+      panelBorder: "rgba(255, 176, 0, 0.4)",
+      text: "#ffb000",
+      muted: "#855c00",
+      number: "#ffb000",
+      numberGlow: "rgba(255, 176, 0, 0.5)",
+      accent: "#ffb000",
+      accent2: "#332200",
+      fish: "#ffb000",
+      line: "rgba(255, 176, 0, 0.5)"
+    },
+    vaporwave: {
+      name: "蒸汽波浪",
+      bgTop: "#ff71ce",
+      bgBottom: "#05ffa1",
+      panel: "rgba(255, 255, 255, 0.15)",
+      panelBorder: "rgba(255, 255, 255, 0.5)",
+      text: "#ffffff",
+      muted: "#b967ff",
+      number: "#fffb96",
+      numberGlow: "rgba(255, 251, 150, 0.6)",
+      accent: "#01cdfe",
+      accent2: "#b967ff",
+      fish: "#fffb96",
+      line: "rgba(255, 255, 255, 0.7)"
+    }
+  };
+  const shareSlots = [
+    ["7天蹬了", (d) => formatBig(d.week)],
+    ["累计蹬了", (d) => formatBig(d.total)],
+    ["已经蹬了", (d) => nf.format(d.activeDays) + " 天"]
+  ];
+
+  // 醍醐骑车叼大鱼：复用主界面 SVG 造型（viewBox 0 0 100 100）的 Canvas 版
+  function drawPelicanBike(ctx, cx, cy, s, c) {
+    const isPixel = shareStyle === "pixel";
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(s, s);
+    ctx.lineCap = isPixel ? "square" : "round";
+    ctx.lineJoin = isPixel ? "miter" : "round";
+    if (isPixel) ctx.lineWidth = 1.5; // 像素风格线条略粗以显得硬朗
+
+    // ---- 车轮 ----（前轮 25,75 / 后轮 75,75）精细版：细辐条仿真真实钢丝轮
+    for (const wx of [25, 75]) {
+      // 外胎：宽边胎壁，富有分量感
+      ctx.beginPath();
+      ctx.arc(wx, 75, 15, 0, Math.PI * 2);
+      ctx.strokeStyle = c.line;
+      ctx.lineWidth = 2.4;
+      ctx.stroke();
+      // 轮圈（Rim）：紧贴胎内的细暗圈 + 内侧金属高光
+      ctx.beginPath();
+      ctx.arc(wx, 75, 13.2, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(10,18,32,0.6)";
+      ctx.lineWidth = 1.1;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(wx, 75, 12.9, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(255,255,255,0.28)";
+      ctx.lineWidth = 0.7;
+      ctx.stroke();
+      // 辐条：16 根细钢丝，从轮毂法兰放射到轮圈
+      ctx.save();
+      ctx.strokeStyle = c.line;
+      ctx.globalAlpha = 0.8;
+      ctx.lineWidth = 0.45;
+      for (let i = 0; i < 16; i++) {
+        const a = i * Math.PI / 8;
+        ctx.beginPath();
+        ctx.moveTo(wx + Math.cos(a) * 2.4, 75 + Math.sin(a) * 2.4);
+        ctx.lineTo(wx + Math.cos(a) * 13.1, 75 + Math.sin(a) * 13.1);
+        ctx.stroke();
+      }
+      ctx.restore();
+      // 轮毂：暗色法兰盘 + 高亮轴心
+      ctx.beginPath();
+      ctx.arc(wx, 75, 2.6, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(10,18,32,0.55)";
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(wx, 75, 1.5, 0, Math.PI * 2);
+      ctx.fillStyle = c.accent;
+      ctx.fill();
+    }
+
+    // ---- 后腿（先画，被车架遮挡，仅透过缝隙看到）----
+    ctx.strokeStyle = c.line;
+    ctx.lineWidth = 3.4;
+    ctx.beginPath();
+    ctx.moveTo(41, 49); ctx.lineTo(38, 58); ctx.lineTo(42, 67);
+    ctx.stroke();
+    ctx.strokeStyle = "#eef4ff";
+    ctx.lineWidth = 2.6;
+    ctx.beginPath();
+    ctx.moveTo(40, 67); ctx.lineTo(44, 67);
+    ctx.stroke();
+
+    // ---- 后脚踏 ----
+    ctx.strokeStyle = c.line;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(50, 72); ctx.lineTo(41.4, 66.8);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(0,0,0,0.3)";
+    ctx.fillRect(39.1, 65.3, 4.8, 3);
+    ctx.fillStyle = "#9fb2cc";
+    ctx.fillRect(38.4, 63.4, 6.2, 2.1);
+
+    // ---- 车架（三角形，上管连到后轮轴）----
+    ctx.strokeStyle = c.line;
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.moveTo(25, 75); ctx.lineTo(50, 72);
+    ctx.moveTo(25, 75); ctx.lineTo(44, 50);
+    ctx.moveTo(50, 72); ctx.lineTo(44, 50);
+    ctx.moveTo(44, 50); ctx.lineTo(60, 42);
+    ctx.moveTo(50, 72); ctx.lineTo(60, 42);
+    ctx.moveTo(60, 42); ctx.lineTo(75, 75);
+    ctx.moveTo(60, 42); ctx.lineTo(62, 37);
+    ctx.stroke();
+
+    // ---- 牙盘 + 前脚踏 ----
+    ctx.beginPath();
+    ctx.arc(50, 72, 6, 0, Math.PI * 2);
+    ctx.strokeStyle = c.accent;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 3]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.arc(50, 72, 1.5, 0, Math.PI * 2);
+    ctx.fillStyle = c.accent;
+    ctx.fill();
+    ctx.strokeStyle = c.line;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(50, 72); ctx.lineTo(58.6, 77.2);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(0,0,0,0.3)";
+    ctx.fillRect(57.1, 75.8, 4.8, 3);
+    ctx.fillStyle = "#9fb2cc";
+    ctx.fillRect(56.4, 73.9, 6.2, 2.1);
+
+    // ---- 鱼（被叼在嘴里）：位置调整到喙中，增加真实感 ----
+    const fish = () => {
+      ctx.save();
+      ctx.translate(72, 16); // 移入喙的范围
+      ctx.rotate(0.15);      // 角度微调，看起来更自然
+      // 尾巴（部分被遮挡）
+      ctx.beginPath();
+      ctx.moveTo(-16, -2);
+      ctx.lineTo(-26, -10);
+      ctx.lineTo(-22, -2);
+      ctx.lineTo(-26, 6);
+      ctx.closePath();
+      ctx.fillStyle = c.fish;
+      ctx.fill();
+      // 身体（在喙中，呈现稍微弯曲受压的状态）
+      ctx.beginPath();
+      ctx.moveTo(-18, 0);
+      ctx.quadraticCurveTo(-2, -11, 14, -2); // 背部
+      ctx.quadraticCurveTo(16, 4, 14, 8);    // 头部
+      ctx.quadraticCurveTo(-2, 12, -18, 0);  // 腹部
+      ctx.closePath();
+      ctx.fillStyle = c.fish;
+      ctx.fill();
+      ctx.strokeStyle = "rgba(30,18,8,0.5)";
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+      // 鱼鳍
+      ctx.beginPath();
+      ctx.moveTo(-2, -8);
+      ctx.quadraticCurveTo(-1, -14, 5, -10);
+      ctx.closePath();
+      ctx.fillStyle = c.fish;
+      ctx.fill();
+      // 眼睛（被抓住时的惊讶状）
+      ctx.beginPath();
+      ctx.arc(10, 2, 2.2, 0, Math.PI * 2);
+      ctx.fillStyle = "#fff";
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(10.5, 2.2, 1.0, 0, Math.PI * 2);
+      ctx.fillStyle = "#20160e";
+      ctx.fill();
+      // 鳞片
+      ctx.strokeStyle = "rgba(60,40,10,0.35)";
+      ctx.lineWidth = 0.7;
+      for (const oy of [-3, 1, 5]) {
+        ctx.beginPath();
+        ctx.arc(-2, oy, 7, -0.8, 0.8);
+        ctx.stroke();
+      }
+      ctx.restore();
+    };
+
+    // ---- 尾羽 ----
+    ctx.fillStyle = c.text;
+    ctx.beginPath();
+    ctx.moveTo(26, 46);
+    ctx.bezierCurveTo(18, 44, 14, 38, 18, 34);
+    ctx.bezierCurveTo(24, 36, 28, 40, 30, 44);
+    ctx.closePath();
+    ctx.fill();
+    // 身体
+    ctx.beginPath();
+    ctx.moveTo(28, 50);
+    ctx.bezierCurveTo(20, 38, 26, 24, 40, 24);
+    ctx.bezierCurveTo(52, 24, 56, 36, 54, 46);
+    ctx.bezierCurveTo(52, 56, 34, 58, 28, 50);
+    ctx.closePath();
+    ctx.fill();
+    // 翅膀
+    ctx.fillStyle = c.text;
+    ctx.globalAlpha = 0.55;
+    ctx.beginPath();
+    ctx.moveTo(34, 34);
+    ctx.bezierCurveTo(44, 30, 54, 36, 48, 46);
+    ctx.bezierCurveTo(40, 50, 30, 44, 34, 34);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    // 颈
+    ctx.fillStyle = c.text;
+    ctx.beginPath();
+    ctx.moveTo(40, 26);
+    ctx.bezierCurveTo(42, 18, 46, 14, 52, 13);
+    ctx.bezierCurveTo(56, 13, 56, 21, 50, 25);
+    ctx.bezierCurveTo(46, 27, 42, 27, 40, 26);
+    ctx.closePath();
+    ctx.fill();
+    // 头
+    ctx.beginPath();
+    ctx.arc(54, 12, 5.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 鱼（在喙闭合区域之后绘制，主体露出、尾被喙遮）
+    fish();
+
+    // 下喙（喉囊）：呈现包裹大鱼的状态，更加真实
+    ctx.beginPath();
+    ctx.moveTo(57, 15);
+    ctx.bezierCurveTo(65, 28, 80, 28, 88, 22); // 向下深弯形成喉囊
+    ctx.bezierCurveTo(75, 24, 65, 22, 58, 18);
+    ctx.closePath();
+    ctx.fillStyle = c.accent2;
+    ctx.fill();
+    ctx.lineWidth = 0.8;
+    ctx.strokeStyle = "rgba(28,16,4,0.3)";
+    ctx.stroke();
+
+    // 上喙：压在鱼身上，呈现合拢状
+    ctx.beginPath();
+    ctx.moveTo(58, 10);
+    ctx.bezierCurveTo(72, 4, 88, 8, 90, 18); // 覆盖鱼的上部
+    ctx.bezierCurveTo(80, 18, 70, 16, 58, 14);
+    ctx.closePath();
+    ctx.fillStyle = c.accent;
+    ctx.fill();
+    ctx.lineWidth = 0.9;
+    ctx.strokeStyle = "rgba(28,16,4,0.4)";
+    ctx.stroke();
+
+    // 眼睛
+    ctx.beginPath();
+    ctx.arc(52, 11, 1.6, 0, Math.PI * 2);
+    ctx.fillStyle = "#121c2e";
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(52.6, 10.6, 0.6, 0, Math.PI * 2);
+    ctx.fillStyle = "#fff";
+    ctx.fill();
+    // 努力（汗滴）
+    ctx.strokeStyle = "rgba(53,211,255,0.9)";
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    ctx.moveTo(63, 4); ctx.quadraticCurveTo(67, 0, 67, 4);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(58, 2); ctx.quadraticCurveTo(62, -2, 62, 2);
+    ctx.stroke();
+
+    // ---- 前腿（最上层，踩前踏板）----
+    ctx.strokeStyle = "rgba(10,18,32,0.78)";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(44, 50); ctx.lineTo(48, 61); ctx.lineTo(58, 77);
+    ctx.stroke();
+    ctx.strokeStyle = c.accent;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(44, 50); ctx.lineTo(48, 61); ctx.lineTo(58, 77);
+    ctx.stroke();
+    ctx.strokeStyle = "#eef4ff";
+    ctx.lineWidth = 2.8;
+    ctx.beginPath();
+    ctx.moveTo(56, 77); ctx.lineTo(61, 77);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function roundRectPath(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  // ---------- 段位 · 称号（海报顶部荣誉徽章） ----------
+  // 单行不折行：动态缩字号，整行宽度自适应（≤ MAX_W）
+  function drawRankBadge(ctx, c, tier, title) {
+    const MAX_W = 960;
+    const cx = SHARE_W / 2;
+    const cy = 96;
+    const badge = tier.badge || 1;
+    const levelText = tier.level ? "LV." + String(tier.level).padStart(2, "0") : "";
+    const sepText = "·";
+    const chipPad = 46;
+    const gapA = 18; // 称号 与 分隔点 间距
+    const gapB = 8;  // 分隔点 与 胶囊 间距
+
+    // 测量配上文所需的文本宽度
+    let titleSize = badge >= 4 ? 52 : 46;
+    let chipSize = Math.round(titleSize * 0.5);
+    let titleW = 0, chipW = 0, sepW = 0, lvW = 0;
+    const measure = () => {
+      ctx.font = '800 ' + titleSize + 'px "PingFang SC","Microsoft YaHei",sans-serif';
+      titleW = ctx.measureText(title || "").width;
+      ctx.font = '700 ' + chipSize + 'px "PingFang SC","Microsoft YaHei",sans-serif';
+      chipW = ctx.measureText(tier.name || "").width;
+      sepW = ctx.measureText(sepText).width;
+      lvW = levelText ? ctx.measureText(levelText).width : 0;
+    };
+    // 动态缩字号：整行不超 MAX_W
+    measure();
+    for (;;) {
+      const chipBoxW = chipW + chipPad * 2 + lvW;
+      const total = titleW + gapA + sepW + gapB + chipBoxW;
+      if (total <= MAX_W || titleSize <= 24) break;
+      titleSize -= 2;
+      chipSize = Math.max(16, Math.round(titleSize * 0.5));
+      measure();
+    }
+    const chipBoxW = chipW + chipPad * 2 + lvW;
+    const totalW = titleW + gapA + sepW + gapB + chipBoxW;
+
+    // 从右向左布局：称号（大字，最醒目）→ 分隔点 → 胶囊[LV + 段位名]
+    const titleX = cx + totalW / 2 - titleW;
+    const sepX = titleX - gapA - sepW;
+    const chipX = sepX - gapB - chipBoxW;
+
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "left";
+
+    // ---- 称号：金属渐变 + 高光（视觉主次最强）----
+    const tg = ctx.createLinearGradient(titleX, 0, titleX + titleW, 0);
+    if (badge >= 5) {
+      tg.addColorStop(0, "#fff7e6");
+      tg.addColorStop(0.45, c.accent);
+      tg.addColorStop(1, c.accent2);
+    } else {
+      tg.addColorStop(0, c.text);
+      tg.addColorStop(0.45, c.accent);
+      tg.addColorStop(1, c.accent2);
+    }
+    ctx.save();
+    ctx.shadowColor = c.numberGlow;
+    ctx.shadowBlur = badge >= 4 ? 42 : 26;
+    ctx.fillStyle = tg;
+    ctx.font = '800 ' + titleSize + 'px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillText(title || "", titleX, cy + 2);
+    ctx.restore();
+
+    // ---- 分隔圆点 ----
+    ctx.fillStyle = c.accent;
+    ctx.font = '800 40px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillText(sepText, sepX, cy);
+
+    // ---- 段位胶囊：金属铭牌（视觉次主）----
+    const chipH = Math.max(44, Math.round(titleSize * 0.92));
+    const chipY = cy - chipH / 2;
+    const grad = ctx.createLinearGradient(0, chipY, 0, chipY + chipH);
+    grad.addColorStop(0, badge >= 3 ? "rgba(255,214,120,0.32)" : "rgba(255,214,120,0.16)");
+    grad.addColorStop(1, badge >= 3 ? "rgba(255,214,120,0.08)" : "rgba(255,255,255,0.05)");
+    ctx.fillStyle = grad;
+    ctx.strokeStyle = c.accent;
+    ctx.lineWidth = badge >= 5 ? 3 : 2;
+    roundRectPath(ctx, chipX, chipY, chipBoxW, chipH, chipH / 2);
+    ctx.fill();
+    ctx.stroke();
+    if (badge >= 2) {
+      ctx.strokeStyle = badge >= 5 ? "rgba(255,247,230,0.85)" : "rgba(255,255,255,0.35)";
+      ctx.lineWidth = 1.2;
+      roundRectPath(ctx, chipX + 4, chipY + 4, chipBoxW - 8, chipH - 8, (chipH - 8) / 2);
+      ctx.stroke();
+    }
+
+    // 胶囊文字：LV 小 + 段位名
+    let textX = chipX + chipPad;
+    if (levelText) {
+      ctx.fillStyle = c.muted;
+      ctx.font = '700 ' + Math.max(13, chipSize - 4) + 'px "Orbitron","JetBrains Mono",monospace';
+      ctx.fillText(levelText, textX, cy);
+      textX += lvW + 14;
+    }
+    ctx.fillStyle = c.text;
+    ctx.font = '700 ' + chipSize + 'px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillText(tier.name || "", textX, cy);
+
+    // ---- 高段位装饰：勋章感 ----
+    if (badge >= 4) {
+      ctx.fillStyle = c.accent;
+      ctx.textAlign = "center";
+      ctx.font = '800 26px "PingFang SC","Microsoft YaHei",sans-serif';
+      ctx.fillText("✦", chipX - 34, cy);
+      ctx.fillText("✦", chipX + chipBoxW + 34, cy);
+      ctx.textAlign = "left";
+    }
+    if (badge === 5) {
+      ctx.save();
+      ctx.shadowColor = c.accent;
+      ctx.shadowBlur = 30;
+      ctx.fillStyle = "rgba(255,215,94,0.55)";
+      ctx.fillRect(chipX - 10, chipY - 3, chipBoxW + 20, 2);
+      ctx.fillRect(chipX - 10, chipY + chipH + 1, chipBoxW + 20, 2);
+      ctx.restore();
+    }
+    // 恢复默认对齐（未绘制进度条时后续文本仍居中）
+    ctx.textAlign = "center";
+  }
+
+  function drawShareCard(canvas, styleKey, d) {
+    const c = SHARE_STYLES[styleKey] || SHARE_STYLES.gold;
+    const ctx = canvas.getContext("2d");
+    const w = canvas.width;
+    const k = w / SHARE_W; // 缩放系数
+
+    ctx.save();
+    ctx.scale(k, k);
+    // 背景渐变
+    const bg = ctx.createLinearGradient(0, 0, 0, SHARE_H);
+    bg.addColorStop(0, c.bgTop);
+    bg.addColorStop(1, c.bgBottom);
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, SHARE_W, SHARE_H);
+
+    // 特色背景动效/纹理
+    if (styleKey === "matrix") {
+      ctx.save();
+      ctx.font = '12px monospace';
+      ctx.fillStyle = "rgba(0, 255, 65, 0.15)";
+      for (let x = 0; x < SHARE_W; x += 20) {
+        for (let y = 0; y < SHARE_H; y += 20) {
+          if (Math.random() > 0.9) {
+            ctx.fillText(Math.floor(Math.random() * 2), x, y);
+          }
+        }
+      }
+      ctx.restore();
+    } else if (styleKey === "blueprint") {
+      ctx.save();
+      ctx.strokeStyle = "rgba(163, 191, 250, 0.15)";
+      ctx.lineWidth = 1;
+      // 网格
+      for (let x = 0; x < SHARE_W; x += 40) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, SHARE_H); ctx.stroke();
+      }
+      for (let y = 0; y < SHARE_H; y += 40) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(SHARE_W, y); ctx.stroke();
+      }
+      // 装饰性测量线
+      ctx.strokeStyle = "rgba(163, 191, 250, 0.3)";
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath(); ctx.moveTo(50, 200); ctx.lineTo(50, 500); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(SHARE_W - 50, 200); ctx.lineTo(SHARE_W - 50, 500); ctx.stroke();
+      ctx.restore();
+    } else if (styleKey === "pixel") {
+      ctx.save();
+      ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
+      for (let i = 0; i < 100; i++) {
+        const px = Math.random() * SHARE_W;
+        const py = Math.random() * SHARE_H;
+        ctx.fillRect(px, py, 4, 4);
+      }
+      ctx.restore();
+    } else if (styleKey === "lava") {
+      ctx.save();
+      for (let i = 0; i < 60; i++) {
+        const size = Math.random() * 6 + 2;
+        ctx.fillStyle = Math.random() > 0.5 ? "#ff4500" : "#ffa500";
+        ctx.globalAlpha = Math.random() * 0.6 + 0.2;
+        ctx.beginPath();
+        ctx.arc(Math.random() * SHARE_W, Math.random() * SHARE_H, size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    } else if (styleKey === "ice") {
+      ctx.save();
+      ctx.fillStyle = "#ffffff";
+      for (let i = 0; i < 150; i++) {
+        ctx.globalAlpha = Math.random() * 0.5 + 0.1;
+        ctx.beginPath();
+        ctx.arc(Math.random() * SHARE_W, Math.random() * SHARE_H, Math.random() * 3 + 1, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    } else if (styleKey === "terminal") {
+      ctx.save();
+      ctx.fillStyle = "rgba(255, 176, 0, 0.03)";
+      for (let y = 0; y < SHARE_H; y += 4) {
+        ctx.fillRect(0, y, SHARE_W, 2);
+      }
+      ctx.restore();
+    } else if (styleKey === "vaporwave") {
+      ctx.save();
+      // 太阳
+      const sunG = ctx.createLinearGradient(0, 300, 0, 600);
+      sunG.addColorStop(0, "#ff71ce");
+      sunG.addColorStop(1, "#fffb96");
+      ctx.fillStyle = sunG;
+      ctx.beginPath();
+      ctx.arc(SHARE_W / 2, 450, 150, 0, Math.PI * 2);
+      ctx.fill();
+      // 底部网格
+      ctx.strokeStyle = "rgba(5, 255, 161, 0.3)";
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 20; i++) {
+        const y = 1100 + i * 30;
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(SHARE_W, y); ctx.stroke();
+      }
+      for (let i = -10; i <= 10; i++) {
+        ctx.beginPath(); ctx.moveTo(SHARE_W / 2 + i * 100, 1100); ctx.lineTo(SHARE_W / 2 + i * 300, SHARE_H); ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // 顶部光晕
+    const halo = ctx.createRadialGradient(SHARE_W / 2, 130, 30, SHARE_W / 2, 130, 640);
+    halo.addColorStop(0, c.numberGlow);
+    halo.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = halo;
+    ctx.fillRect(0, 0, SHARE_W, SHARE_H);
+
+    // 段位 · 称号（海报顶端荣誉徽章）
+    const totalTokens = Math.floor(Number(d.total || 0));
+    const tier = TokenRanks.computeRank(totalTokens);
+    drawRankBadge(ctx, c, tier, TokenRanks.defaultTitle(tier));
+
+    // 醍醐骑车叼大鱼（左右视觉居中修正，并拉开与下方文字的垂直间距）
+    drawPelicanBike(ctx, 390, 198, 3.6, c);
+
+    // 大数字（今日 Tokens），先测量宽度供小字左对齐
+    const today = Number(d.today || 0);
+    const bigText = String(today >= 1e4 ? Math.round(today / 1e4) + " 万" : nf.format(today));
+    ctx.font = '700 160px "Orbitron","JetBrains Mono",monospace';
+    const bigLeftX = SHARE_W / 2 - ctx.measureText(bigText).width / 2;
+
+    // 今日用量小字标注（与今日用量左对齐）
+    ctx.textAlign = "left";
+    ctx.fillStyle = c.muted;
+    ctx.font = '600 30px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillText("今天蹬了", bigLeftX, 532);
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = "transparent";
+
+    // 大数字绘制（重置为 160px，避免被小字字体影响）
+    ctx.textAlign = "center";
+    ctx.font = '700 160px "Orbitron","JetBrains Mono",monospace';
+    ctx.shadowColor = c.numberGlow;
+    ctx.shadowBlur = 50;
+    ctx.fillStyle = c.number;
+    ctx.fillText(bigText, SHARE_W / 2, 638);
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = "transparent";
+
+    // slogan（随机金句：双层光晕特效，文字高对比色 + 彩色光晕形成明显反差）
+    const randomSlogan = SHARE_SLOGANS[Math.floor(Math.random() * SHARE_SLOGANS.length)];
+    ctx.font = '700 54px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.shadowColor = c.accent;
+    ctx.shadowBlur = 55;
+    ctx.fillStyle = c.text;
+    ctx.globalAlpha = 0.35;
+    ctx.fillText(randomSlogan, SHARE_W / 2, 792);
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 26;
+    ctx.fillText(randomSlogan, SHARE_W / 2, 790);
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = "transparent";
+
+    // 统计三格
+    const cols = shareSlots.length;
+    const colW = 300;
+    const rowH = 170;
+    const gap = 26;
+    const gx0 = (SHARE_W - (colW * cols + gap * (cols - 1))) / 2;
+    const gy0 = 900;
+    for (let i = 0; i < cols; i++) {
+      const x = gx0 + i * (colW + gap);
+      ctx.fillStyle = c.panel;
+      ctx.strokeStyle = c.panelBorder;
+      ctx.lineWidth = 2;
+      roundRectPath(ctx, x, gy0, colW, rowH, 22);
+      ctx.fill();
+      ctx.stroke();
+      ctx.textAlign = "center";
+      ctx.fillStyle = c.muted;
+      ctx.font = '600 30px "PingFang SC","Microsoft YaHei",sans-serif';
+      ctx.fillText(shareSlots[i][0], x + colW / 2, gy0 + 52);
+      ctx.fillStyle = c.text;
+      ctx.font = '700 46px "Orbitron","JetBrains Mono",monospace';
+      ctx.fillText(shareSlots[i][1](d), x + colW / 2, gy0 + 122);
+    }
+
+    // 底部：Token 等级占比（与主界面一致的环状占比图 + 图例）
+    const levels = d.levels || { high: 0, medium: 0, low: 0 };
+    const sum = levels.high + levels.medium + levels.low || 1;
+    const slices = [
+      { key: "高级token", v: levels.high / sum, color: "#ffc861" },
+      { key: "中级token", v: levels.medium / sum, color: "#35d3ff" },
+      { key: "低级token", v: levels.low / sum, color: "#4a5568" }
+    ];
+    const pcx = 330;
+    const pcy = 1240;
+    const pr = 128;
+    // 环状占比图（空心环形，环宽与主界面比例一致）
+    const ringWidth = pr * 0.3;
+    ctx.save();
+    ctx.lineWidth = ringWidth;
+    ctx.lineCap = "butt";
+    let start = -Math.PI / 2;
+    for (const sl of slices) {
+      if (sl.v <= 0) continue;
+      const end = start + sl.v * Math.PI * 2;
+      ctx.beginPath();
+      ctx.arc(pcx, pcy, pr - ringWidth / 2, start, end);
+      ctx.strokeStyle = sl.color;
+      ctx.stroke();
+      start = end;
+    }
+    ctx.restore();
+
+    // 饼图中心文字（层次优化）
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = c.muted;
+    ctx.font = '700 24px "Orbitron","JetBrains Mono",monospace';
+    ctx.fillText("LEVELS", pcx, pcy);
+
+    // 图例（对齐优化）
+    let ly = pcy - 86;
+    for (const sl of slices) {
+      ctx.fillStyle = sl.color;
+      ctx.beginPath();
+      ctx.arc(560, ly, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = c.text;
+      ctx.font = '600 34px "PingFang SC","Microsoft YaHei",sans-serif';
+      ctx.textAlign = "left";
+      ctx.fillText(sl.key, 590, ly + 2);
+      ctx.fillStyle = c.muted;
+      ctx.font = '700 30px "Orbitron","JetBrains Mono",monospace';
+      ctx.textAlign = "right";
+      ctx.fillText(Math.round(sl.v * 100) + "%", 880, ly + 2);
+      ly += 76;
+    }
+
+    // 底部认证区：Token 计量办 · 报告编号 · 数据来源 · 二维码（战绩可查）
+    const certY = 1375;
+    ctx.save();
+    ctx.strokeStyle = c.line;
+    ctx.globalAlpha = 0.5;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(60, certY);
+    ctx.lineTo(SHARE_W - 60, certY);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+
+    // 二维码内容：战绩验证页链接（携带编号、原始数据与签发时间，验证页可指纹复核）
+    const genD = d.generatedAt ? new Date(d.generatedAt) : new Date();
+    const tt = String(genD.getFullYear()) +
+      String(genD.getMonth() + 1).padStart(2, "0") +
+      String(genD.getDate()).padStart(2, "0") +
+      String(genD.getHours()).padStart(2, "0") +
+      String(genD.getMinutes()).padStart(2, "0");
+    const qrText = VERIFY_BASE +
+      "?n=" + encodeURIComponent(d.reportNo || "N/A") +
+      "&t=" + (d.total || 0) +
+      "&d=" + (d.today || 0) +
+      "&a=" + (d.activeDays || 0) +
+      "&tt=" + tt +
+      "&s=" + encodeURIComponent((d.sources && d.sources.length ? d.sources : ["本地采集"]).join(","));
+
+    // 二维码（右侧，白底保证可扫）
+    const qrSize = 136;
+    const qrX = SHARE_W - 60 - qrSize;
+    const qrY = certY + 4;
+    try {
+      if (typeof qrcode === "function") {
+        // 中英文混排内容需要 UTF-8 字节编码，否则扫码内容会乱码
+        qrcode.stringToBytes = qrcode.stringToBytesFuncs["UTF-8"];
+        const qr = qrcode(0, "M");
+        qr.addData(qrText);
+        qr.make();
+        const n = qr.getModuleCount();
+        const cell = qrSize / n;
+        roundRectPath(ctx, qrX - 11, qrY - 11, qrSize + 22, qrSize + 22, 14);
+        ctx.fillStyle = "#ffffff";
+        ctx.fill();
+        ctx.fillStyle = "#0b1220";
+        for (let r = 0; r < n; r++) {
+          for (let cc = 0; cc < n; cc++) {
+            if (qr.isDark(r, cc)) {
+              ctx.fillRect(qrX + cc * cell, qrY + r * cell, cell + 0.5, cell + 0.5);
+            }
+          }
+        }
+        ctx.textAlign = "center";
+        ctx.fillStyle = c.muted;
+        ctx.font = '600 20px "PingFang SC","Microsoft YaHei",sans-serif';
+        ctx.fillText("扫码查验战绩", qrX + qrSize / 2, qrY + qrSize + 24);
+      } else {
+        console.warn("[share] qrcode 库未加载，二维码已跳过");
+      }
+    } catch (qrErr) {
+      console.warn("[share] 二维码生成失败，已跳过：", qrErr);
+    }
+
+    // 左侧认证文字
+    const certX = 70;
+    ctx.textAlign = "left";
+    ctx.fillStyle = c.accent;
+    ctx.font = '700 30px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillText("TOKEN 计量办 · 官方认证", certX, 1432);
+    ctx.fillStyle = c.text;
+    ctx.font = '700 26px "Orbitron","JetBrains Mono",monospace';
+    ctx.fillText("报告编号 " + (d.reportNo || "N/A"), certX, 1480);
+    ctx.fillStyle = c.muted;
+    ctx.globalAlpha = 0.5;
+    ctx.font = '600 20px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillText("本报告由 Token 计量办签发 · 数据本地加密采集 · 战绩真实可查", certX, 1532);
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function redrawSharePreview() {
+    const preview = $("sharePreview");
+    if (!preview || !shareData) return;
+    preview.width = SHARE_W;
+    preview.height = SHARE_H;
+    drawShareCard(preview, shareStyle, shareData);
+  }
+
+  function toastShare(msg, isError) {
+    const el = $("shareToast");
+    el.textContent = msg;
+    el.classList.toggle("error", !!isError);
+    el.classList.add("show");
+    clearTimeout(toastShare._t);
+    toastShare._t = setTimeout(() => el.classList.remove("show"), 2600);
+  }
+
+  async function copyShareCard() {
+    if (!shareData) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = SHARE_W;
+    canvas.height = SHARE_H;
+    drawShareCard(canvas, shareStyle, shareData);
+    try {
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+      if (!blob) throw new Error("toBlob failed");
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+      toastShare("已复制！去群里/朋友圈粘贴炫一波");
+    } catch (err) {
+      // 降级：尝试直接下载 PNG
+      try {
+        const a = document.createElement("a");
+        a.download = "今日蹬值.png";
+        a.href = canvas.toDataURL("image/png");
+        a.click();
+        toastShare("复制不受支持，已改为保存图片", true);
+      } catch (e2) {
+        toastShare("图片生成失败：" + (err.message || err), true);
+      }
+    }
+  }
+
+  function openShare() {
+    const over = $("shareOverlay");
+    if (!shareData) {
+      toastShare("暂无统计数据，请先刷新", true);
+      return;
+    }
+    try {
+      redrawSharePreview();
+    } catch (err) {
+      console.warn("[share] 预览渲染失败：", err);
+      toastShare("预览渲染失败，请稍后再试", true);
+      return;
+    }
+    over.classList.add("visible");
+  }
+
+  function closeShare() {
+    $("shareOverlay").classList.remove("visible");
+  }
+
+  // ---------- 控件 ----------
+  $("shareBtn").onclick = openShare;
+  $("shareClose").onclick = closeShare;
+  $("shareOverlay").addEventListener("pointerdown", (e) => {
+    if (e.target === $("shareOverlay")) closeShare();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && $("shareOverlay").classList.contains("visible")) closeShare();
+  });
+  $("shareStyleSwitch").addEventListener("click", () => {
+    const keys = Object.keys(SHARE_STYLES);
+    const idx = keys.indexOf(shareStyle);
+    shareStyle = keys[(idx + 1) % keys.length];
+    redrawSharePreview();
+  });
+  $("shareCopy").onclick = copyShareCard;
+  $("refreshBtn").onclick = refresh;
+  $("closeBtn").onclick = () => window.__TAURI__ && window.__TAURI__.core.invoke("hide_window");
+  $("quitBtn").onclick = () => window.__TAURI__ && window.__TAURI__.core.invoke("exit_app");
+
+  // 下载桌面端入口只在网页版展示，桌面应用窗口内隐藏
+  if (window.__TAURI__) {
+    document.querySelector("footer")?.classList.add("hide-download");
+  } else {
+    document.body.classList.add("in-web");
+  }
+  $("pinBtn").onclick = async (e) => {
+    if (!window.__TAURI__) return;
+    const on = await window.__TAURI__.core.invoke("toggle_always_on_top");
+    e.currentTarget.classList.toggle("active", on);
+  };
+
+  // 拖动：走 Rust 后端命令，避免前端依赖 window API 版本差异
+  document.addEventListener("pointerdown", async (e) => {
+    if (e.button !== 0) return;
+    if (e.target.closest("button, a, input, select, textarea, canvas")) return;
+    if (!e.target.closest("[data-drag]")) return;
+    if (!window.__TAURI__ || !window.__TAURI__.core) return;
+    e.preventDefault();
+    try {
+      await window.__TAURI__.core.invoke("start_window_drag");
+    } catch (err) {
+      $("errorBox").innerHTML = '<div class="error-msg">拖动失败：' + (err.message || err) + '</div>';
+    }
+  });
+
+  startPelicanAnimation();
+  refresh();
+  setInterval(refresh, 60000);
+})();
+</script>
+</body>
+</html>

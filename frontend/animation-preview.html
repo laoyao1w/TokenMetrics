@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>猛蹬动画预览</title>
+<script>
+  document.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: rgba(8, 14, 26, 0.94);
+    --text: #eef4ff;
+    --muted: #93a6c3;
+    --cyan: #35d3ff;
+    --gold: #ffc861;
+    --hero-font: "Orbitron", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    height: 100vh;
+    font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    color: var(--text);
+    background:
+      radial-gradient(120% 80% at 10% 0%, rgba(53, 211, 255, 0.16) 0%, transparent 55%),
+      radial-gradient(130% 90% at 100% 100%, rgba(124, 92, 255, 0.12) 0%, transparent 50%),
+      var(--bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    user-select: none;
+  }
+  h1 { font-size: 16px; letter-spacing: 3px; color: var(--muted); font-weight: 600; }
+  .preview-stage {
+    width: 280px;
+    height: 280px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* 边缘模糊阴影效果预览 */
+    filter: drop-shadow(0 0 15px rgba(0, 0, 0, 0.8)) drop-shadow(0 0 5px rgba(53, 211, 255, 0.2));
+  }
+  .pedaling-text {
+    font-family: var(--hero-font);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--cyan);
+    letter-spacing: 2px;
+    text-align: center;
+    animation: pulseText 0.5s infinite alternate;
+  }
+  .controls { display: flex; gap: 10px; }
+  button {
+    font-family: inherit;
+    font-size: 12px;
+    color: var(--text);
+    background: rgba(53, 211, 255, 0.12);
+    border: 1px solid rgba(53, 211, 255, 0.35);
+    border-radius: 999px;
+    padding: 8px 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  button:hover { background: rgba(53, 211, 255, 0.24); }
+
+  @keyframes pulseText {
+    from { opacity: 0.7; }
+    to { opacity: 1; text-shadow: 0 0 12px var(--cyan); }
+  }
+  @keyframes wheelSpin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  .bike-wheel {
+    animation: wheelSpin 1s linear infinite;
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  .leg-link-backdrop {
+    stroke: rgba(10, 18, 32, 0.78);
+    stroke-width: 6.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .leg-link {
+    stroke-width: 4.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .leg-link.front { stroke: var(--cyan); }
+  .leg-link.back { stroke: #506788; }
+  .leg-foot {
+    stroke: #eef4ff;
+    stroke-width: 3.2;
+    stroke-linecap: round;
+  }
+  .leg-joint {
+    fill: #eef4ff;
+    stroke: rgba(10, 18, 32, 0.45);
+    stroke-width: 1.2;
+  }
+  .crank-arm {
+    stroke: rgba(255, 255, 255, 0.42);
+    stroke-width: 1.8;
+    stroke-linecap: round;
+  }
+  .pedal-body { fill: #9fb2cc; }
+  .pedal-top { fill: #f4f8ff; }
+  .chainring,
+  .crank-assembly {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  @keyframes beakPant {
+    0%, 45% { transform: rotate(0deg); }
+    60%, 85% { transform: rotate(-10deg); }
+    100% { transform: rotate(0deg); }
+  }
+  @keyframes lowerBeakPant {
+    0%, 45% { transform: rotate(0deg); }
+    60%, 85% { transform: rotate(12deg); }
+    100% { transform: rotate(0deg); }
+  }
+  .beak-top { transform-box: fill-box; transform-origin: 0% 90%; animation: beakPant 0.7s ease-in-out infinite; }
+  .beak-bottom { transform-box: fill-box; transform-origin: 0% 10%; animation: lowerBeakPant 0.7s ease-in-out infinite; }
+  .beak-seam {
+    stroke: rgba(95, 54, 10, 0.55);
+    stroke-width: 1;
+    stroke-linecap: round;
+    fill: none;
+  }
+  @keyframes bodyBounce {
+    0% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-4px) rotate(3deg); }
+    100% { transform: translateY(0) rotate(0deg); }
+  }
+  .pelican-body { transform-origin: 45px 55px; animation: bodyBounce 0.2s infinite linear; }
+  @keyframes wingFlap {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(-15deg); }
+  }
+  .wing { transform-origin: 30px 40px; animation: wingFlap 0.2s infinite alternate ease-in-out; }
+  @keyframes sweatFly {
+    0% { transform: translate(0, 0); opacity: 1; }
+    100% { transform: translate(12px, -8px); opacity: 0; }
+  }
+  .sweat { animation: sweatFly 0.4s infinite; }
+  .sweat:nth-child(2) { animation-delay: 0.2s; }
+</style>
+</head>
+<body>
+  <h1>TOKEN HALL · 猛蹬动画预览</h1>
+
+  <div class="preview-stage">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:14px">
+      <svg class="pelican-svg" viewBox="0 0 100 100" width="150" height="150">
+        <defs>
+          <g id="wheel">
+            <circle cx="0" cy="0" r="15" fill="none" stroke="#93a6c3" stroke-width="2.5"/>
+            <circle cx="0" cy="0" r="13" fill="none" stroke="#121c2e" stroke-width="2"/>
+            <circle cx="0" cy="0" r="2.5" fill="#35d3ff"/>
+            <line x1="0" y1="-15" x2="0" y2="15" stroke="#93a6c3" stroke-width="0.5" opacity="0.6"/>
+            <line x1="-15" y1="0" x2="15" y2="0" stroke="#93a6c3" stroke-width="0.5" opacity="0.6"/>
+            <line x1="-10.6" y1="-10.6" x2="10.6" y2="10.6" stroke="#93a6c3" stroke-width="0.5" opacity="0.6"/>
+            <line x1="-10.6" y1="10.6" x2="10.6" y2="-10.6" stroke="#93a6c3" stroke-width="0.5" opacity="0.6"/>
+          </g>
+        </defs>
+        <g transform="translate(25, 75)"><g class="bike-wheel"><use href="#wheel"/></g></g>
+        <g transform="translate(75, 75)"><g class="bike-wheel"><use href="#wheel"/></g></g>
+        <g class="leg-back">
+          <line class="leg-link-backdrop" id="backThighBack" x1="41" y1="49" x2="38" y2="58"/>
+          <line class="leg-link back" id="backThigh" x1="41" y1="49" x2="38" y2="58"/>
+          <line class="leg-link-backdrop" id="backCalfBack" x1="38" y1="58" x2="42" y2="67"/>
+          <line class="leg-link back" id="backCalf" x1="38" y1="58" x2="42" y2="67"/>
+          <line class="leg-foot" id="backFoot" x1="40" y1="67" x2="44" y2="67"/>
+          <circle class="leg-joint" id="backKnee" cx="38" cy="58" r="2.1"/>
+        </g>
+        <!-- 左脚踏：紧随左脚之后（车架之下），会被车架/牙盘遮挡 -->
+        <g id="back-drive">
+          <g class="crank-assembly">
+            <line class="crank-arm" id="backCrankArm" x1="50" y1="72" x2="41.4" y2="66.8"/>
+            <rect class="pedal-body" id="backPedalBody" x="39.1" y="65.3" width="4.8" height="3" rx="1.1"/>
+            <rect class="pedal-top" id="backPedalTop" x="38.4" y="63.4" width="6.2" height="2.1" rx="1"/>
+          </g>
+        </g>
+        <path d="M 25 75 L 50 72 M 25 75 L 44 50 M 50 72 L 44 50 M 50 72 L 60 42 M 44 50 L 60 42 M 44 50 L 44 46 L 48 46 M 60 42 L 75 75 M 60 42 L 62 37 M 57 37 L 67 37 M 57 37 L 56 40 M 67 37 L 68 40" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <!-- 牙盘 + 右脚踏：车架之上、右脚之下 -->
+        <g id="drivetrain">
+          <circle cx="50" cy="72" r="6" fill="none" stroke="var(--cyan)" stroke-width="1.5" class="chainring" stroke-dasharray="3 3"/>
+          <circle cx="50" cy="72" r="1.5" fill="var(--cyan)"/>
+          <g class="crank-assembly">
+            <line class="crank-arm" id="frontCrankArm" x1="50" y1="72" x2="58.6" y2="77.2"/>
+            <rect class="pedal-body" id="frontPedalBody" x="57.1" y="75.8" width="4.8" height="3" rx="1.1"/>
+            <rect class="pedal-top" id="frontPedalTop" x="56.4" y="73.9" width="6.2" height="2.1" rx="1"/>
+          </g>
+        </g>
+        <g class="pelican-body">
+          <path d="M 26 46 C 18 44, 14 38, 18 34 C 24 36, 28 40, 30 44 Z" fill="#c3d2ea"/>
+          <path d="M 28 50 C 20 38, 26 24, 40 24 C 52 24, 56 36, 54 46 C 52 56, 34 58, 28 50 Z" fill="#f4f8ff"/>
+          <path d="M 34 34 C 44 30, 54 36, 48 46 C 40 50, 30 44, 34 34 Z" fill="#d5e2f5" class="wing"/>
+          <path d="M 40 26 C 42 18, 46 14, 52 13 C 56 13, 56 21, 50 25 C 46 27, 42 27, 40 26 Z" fill="#f4f8ff"/>
+          <circle cx="54" cy="12" r="5.5" fill="#f4f8ff"/>
+          <g class="beak-top"><path d="M 58 10 C 72 2, 88 8, 86 15 C 80 17, 70 14, 58 14 Z" fill="var(--gold)"/></g>
+          <g class="beak-bottom">
+            <path d="M 57.55 15.05 C 65.2 16.15, 74.6 17.05, 80.25 18.55 C 72.8 21.25, 63.4 20.65, 58.3 18.45 C 57.7 17.25, 57.35 16.05, 57.55 15.05 Z" fill="#ff9c3a"/>
+            <path d="M 57.65 15.1 C 61.1 14.95, 64.2 14.95, 67.3 15.3" class="beak-seam"/>
+          </g>
+          <circle cx="52" cy="11" r="1.6" fill="#121c2e"/>
+          <circle cx="52.6" cy="10.6" r="0.6" fill="#fff"/>
+          <path d="M 63 4 Q 67 0 67 4" fill="none" stroke="var(--cyan)" stroke-width="1.5" class="sweat"/>
+          <path d="M 58 2 Q 62 -2 62 2" fill="none" stroke="var(--cyan)" stroke-width="1.5" class="sweat"/>
+        </g>
+        <g class="leg-front">
+          <line class="leg-link-backdrop" id="frontThighBack" x1="44" y1="50" x2="48" y2="61"/>
+          <line class="leg-link front" id="frontThigh" x1="44" y1="50" x2="48" y2="61"/>
+          <line class="leg-link-backdrop" id="frontCalfBack" x1="48" y1="61" x2="58" y2="77"/>
+          <line class="leg-link front" id="frontCalf" x1="48" y1="61" x2="58" y2="77"/>
+          <line class="leg-foot" id="frontFoot" x1="56" y1="77" x2="61" y2="77"/>
+          <circle class="leg-joint" id="frontKnee" cx="48" cy="61" r="2.2"/>
+        </g>
+      </svg>
+      <div class="pedaling-text" id="pedalText">猛蹬中...</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button id="toggleBtn">暂停</button>
+    <button id="textBtn">切换文字</button>
+  </div>
+
+<script>
+  (function () {
+    "use strict";
+
+    const toggleBtn = document.getElementById("toggleBtn");
+    const pedalText = document.getElementById("pedalText");
+    const textBtn = document.getElementById("textBtn");
+    const texts = ["猛蹬中...", "冲鸭！Token 在燃烧！", "腿速拉满中..."];
+    const state = { paused: false, start: performance.now(), pauseStarted: 0, pausedAccum: 0 };
+    let textIndex = 0;
+
+    function setLine(line, x1, y1, x2, y2) {
+      line.setAttribute("x1", x1.toFixed(2));
+      line.setAttribute("y1", y1.toFixed(2));
+      line.setAttribute("x2", x2.toFixed(2));
+      line.setAttribute("y2", y2.toFixed(2));
+    }
+
+    function setRect(rect, x, y, width, height, angle) {
+      rect.setAttribute("x", x.toFixed(2));
+      rect.setAttribute("y", y.toFixed(2));
+      rect.setAttribute("width", width.toFixed(2));
+      rect.setAttribute("height", height.toFixed(2));
+      const cx = x + width / 2;
+      const cy = y + height / 2;
+      rect.setAttribute("transform", `rotate(${angle.toFixed(2)} ${cx.toFixed(2)} ${cy.toFixed(2)})`);
+    }
+
+    function solveKnee(hip, foot, upperLen, lowerLen, bendSide) {
+      const dx = foot.x - hip.x;
+      const dy = foot.y - hip.y;
+      const dist = Math.max(0.001, Math.hypot(dx, dy));
+      const clamped = Math.min(dist, upperLen + lowerLen - 0.001);
+      const ux = dx / dist;
+      const uy = dy / dist;
+      const a = (upperLen * upperLen - lowerLen * lowerLen + clamped * clamped) / (2 * clamped);
+      const h = Math.sqrt(Math.max(upperLen * upperLen - a * a, 0));
+      const mx = hip.x + ux * a;
+      const my = hip.y + uy * a;
+      const px = -uy * h * bendSide;
+      const py = ux * h * bendSide;
+      return { x: mx + px, y: my + py };
+    }
+
+    function drawLeg(parts, hip, foot, upperLen, lowerLen, bendSide, footAngle, footHalf) {
+      const knee = solveKnee(hip, foot, upperLen, lowerLen, bendSide);
+      setLine(parts.thighBack, hip.x, hip.y, knee.x, knee.y);
+      setLine(parts.thigh, hip.x, hip.y, knee.x, knee.y);
+      setLine(parts.calfBack, knee.x, knee.y, foot.x, foot.y);
+      setLine(parts.calf, knee.x, knee.y, foot.x, foot.y);
+      const footRadius = footHalf || 3.2;
+      const fx = Math.cos(footAngle) * footRadius;
+      const fy = Math.sin(footAngle) * footRadius;
+      setLine(parts.foot, foot.x - fx, foot.y - fy, foot.x + fx, foot.y + fy);
+      parts.knee.setAttribute("cx", knee.x.toFixed(2));
+      parts.knee.setAttribute("cy", knee.y.toFixed(2));
+    }
+
+    function startAnimation() {
+      const svg = document.querySelector(".pelican-svg");
+      const drivetrain = svg.querySelector("#drivetrain");
+      const backDrive = svg.querySelector("#back-drive");
+
+      const frontLeg = {
+        thighBack: svg.querySelector("#frontThighBack"),
+        thigh: svg.querySelector("#frontThigh"),
+        calfBack: svg.querySelector("#frontCalfBack"),
+        calf: svg.querySelector("#frontCalf"),
+        foot: svg.querySelector("#frontFoot"),
+        knee: svg.querySelector("#frontKnee")
+      };
+      const backLeg = {
+        thighBack: svg.querySelector("#backThighBack"),
+        thigh: svg.querySelector("#backThigh"),
+        calfBack: svg.querySelector("#backCalfBack"),
+        calf: svg.querySelector("#backCalf"),
+        foot: svg.querySelector("#backFoot"),
+        knee: svg.querySelector("#backKnee")
+      };
+
+      const cfg = {
+        center: { x: 50, y: 72 },
+        crankRadius: 10,
+        frontHip: { x: 43.6, y: 49.8 },
+        backHip: { x: 40.8, y: 48.7 },
+        frontUpper: 12.8,
+        frontLower: 18.4,
+        backUpper: 11.6,
+        backLower: 14.8,
+        footAngle: Math.PI / 10,
+        cycleMs: 980,
+        startAngle: Math.PI / 6
+      };
+
+      function frame(now) {
+        if (state.paused) {
+          window.requestAnimationFrame(frame);
+          return;
+        }
+
+        const elapsed = now - state.start - state.pausedAccum;
+        const t = (elapsed % cfg.cycleMs) / cfg.cycleMs;
+        const angle = cfg.startAngle + t * Math.PI * 2;
+        const frontPedal = {
+          x: cfg.center.x + Math.cos(angle) * cfg.crankRadius,
+          y: cfg.center.y + Math.sin(angle) * cfg.crankRadius
+        };
+        const backPedal = {
+          x: cfg.center.x - Math.cos(angle) * cfg.crankRadius,
+          y: cfg.center.y - Math.sin(angle) * cfg.crankRadius
+        };
+        const backHiddenFoot = {
+          x: cfg.center.x + (backPedal.x - cfg.center.x) * 0.76,
+          y: cfg.center.y + (backPedal.y - cfg.center.y) * 0.76
+        };
+
+        drivetrain.setAttribute("transform", `rotate(${((angle - cfg.startAngle) * 180 / Math.PI).toFixed(2)} ${cfg.center.x} ${cfg.center.y})`);
+        backDrive.setAttribute("transform", `rotate(${((angle - cfg.startAngle) * 180 / Math.PI).toFixed(2)} ${cfg.center.x} ${cfg.center.y})`);
+        drawLeg(frontLeg, cfg.frontHip, frontPedal, cfg.frontUpper, cfg.frontLower, 1, cfg.footAngle, 3.2);
+        drawLeg(backLeg, cfg.backHip, backHiddenFoot, cfg.backUpper, cfg.backLower, -1, -cfg.footAngle, 1.65);
+
+        window.requestAnimationFrame(frame);
+      }
+
+      window.requestAnimationFrame(frame);
+    }
+
+    toggleBtn.addEventListener("click", function () {
+      state.paused = !state.paused;
+      if (state.paused) {
+        state.pauseStarted = performance.now();
+      } else {
+        state.pausedAccum += performance.now() - state.pauseStarted;
+      }
+      toggleBtn.textContent = state.paused ? "继续" : "暂停";
+    });
+
+    textBtn.addEventListener("click", function () {
+      textIndex = (textIndex + 1) % texts.length;
+      pedalText.textContent = texts[textIndex];
+    });
+
+    startAnimation();
+  })();
+</script>
+</body>
+</html>
