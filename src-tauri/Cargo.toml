@@ -1,7 +1,7 @@
 [package]
 name = "token-hall"
 version = "0.1.0"
-description = "AI Token Hall desktop floating window"
+description = "AI TokenMetrics desktop floating window"
 edition = "2021"
 rust-version = "1.77"
 

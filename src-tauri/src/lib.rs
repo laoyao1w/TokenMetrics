@@ -389,7 +389,7 @@ fn build_tray(app: &tauri::App) -> tauri::Result<()> {
     let frames = tray_icon_frames();
 
     let _tray = TrayIconBuilder::with_id("main-tray")
-        .tooltip("Token Hall")
+        .tooltip("TokenMetrics")
         .menu(&menu)
         .icon(frames[0].clone())
         .on_menu_event(|app, event| match event.id().as_ref() {
@@ -637,5 +637,5 @@ pub fn run() {
             }
         })
         .run(tauri::generate_context!())
-        .expect("error while running Token Hall");
+        .expect("error while running TokenMetrics");
 }

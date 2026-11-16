@@ -146,5 +146,5 @@ const server = createServer(async (request, response) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`AI Token Hall preview running at http://127.0.0.1:${PORT}`);
+  console.log(`AI TokenMetrics preview running at http://127.0.0.1:${PORT}`);
 });

@@ -188,7 +188,7 @@ Invoke-WebRequest `
 | 产物 | 路径 |
 | --- | --- |
 | 桌面程序 exe | `src-tauri\target\release\token-hall.exe` |
-| NSIS 安装包 | `src-tauri\target\release\bundle\nsis\Token Hall_0.1.0_x64-setup.exe` |
+| NSIS 安装包 | `src-tauri\target\release\bundle\nsis\TokenMetrics_0.1.0_x64-setup.exe` |
 | WebView 采集 bundle | `frontend\collector.js` + `frontend\sql-wasm.wasm`（随 frontendDist 打进 exe） |
 | NSIS 工具缓存 | `src-tauri\target\.tauri\` |
 

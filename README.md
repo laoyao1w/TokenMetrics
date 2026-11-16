@@ -2,14 +2,14 @@
   <img src="assets/app-icon.png" width="128" alt="Token 统计局" />
 </p>
 
-<h1 align="center">🔋 Token 统计局 · Token Hall</h1>
+<h1 align="center">🔋 Token 统计局 · TokenMetrics</h1>
 
 <p align="center">
   <b>AI 时代不看你知不知道，看你的 Token 烧了多少。</b>
 </p>
 
 <p align="center">
-  <a href="https://tokenmetrology.pages.dev/"><img src="https://img.shields.io/badge/在线使用-tokenmetrology.pages.dev-22d3ee?style=for-the-badge&labelColor=0f172a" alt="在线使用" /></a>
+  <a href="https://github.com/laoyao1w/TokenMetrics/raw/main/frontend/downloads/TokenMetrics.exe"><img src="https://img.shields.io/badge/下载桌面端-Windows%20exe-38bdf8?style=for-the-badge&labelColor=0f172a" alt="下载桌面端" /></a>
   <img src="https://img.shields.io/badge/版本-0.1.0-22d3ee?style=for-the-badge&labelColor=0f172a" alt="版本" />
   <img src="https://img.shields.io/badge/桌面端-Windows-38bdf8?style=for-the-badge&labelColor=0f172a" alt="平台" />
   <img src="https://img.shields.io/badge/协议-GPL--3.0-fbbf24?style=for-the-badge&labelColor=0f172a" alt="协议" />
@@ -122,5 +122,5 @@ src-tauri/src/     Rust：IPC 命令、SQLite 快照与解密
 </p>
 
 <p align="center">
-  <sub>在线版本：<a href="https://tokenmetrology.pages.dev/">tokenmetrology.pages.dev</a></sub>
+  <sub>下载绿色免安装版：<a href="https://github.com/laoyao1w/TokenMetrics/raw/main/frontend/downloads/TokenMetrics.exe">TokenMetrics.exe</a>（约 3.9 MB），点击后可直接下载桌面端 exe 文件，解压即用。</sub>
 </p>

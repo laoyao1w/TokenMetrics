@@ -11,4 +11,3 @@ desktop-runtime/
 *.log
 .obsidian/
 .trae-html-share-packages/
-frontend/downloads/
